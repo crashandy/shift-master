@@ -149,11 +149,21 @@ export default function AdminPage() {
   // 切換劃休開放狀態
   const toggleSubmissionOpen = async () => {
     const nextState = !isSubmissionOpen;
+    
+    // 先更新本地畫面狀態（讓按鈕點擊有即時反應）
+    setIsSubmissionOpen(nextState);
+
+    // 寫入 Supabase
     const { error } = await supabase
       .from('system_settings')
-      .upsert({ id: 'global', is_submission_open: nextState });
+      .upsert({ id: 'global', is_submission_open: nextState }, { onConflict: 'id' });
 
-    if (!error) setIsSubmissionOpen(nextState);
+    if (error) {
+      console.error('更新劃休狀態失敗:', error);
+      alert('更新失敗：' + error.message);
+      // 如果寫入失敗，恢復原本狀態
+      setIsSubmissionOpen(!nextState);
+    }
   };
 
   // 使用畫筆工具進行排班
