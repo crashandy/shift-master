@@ -3,13 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
-// 班別對應顏色與簡稱標籤
-const SHIFT_TYPES: Record<string, { label: string; bg: string; text: string }> = {
-  normal: { label: '正', bg: 'bg-blue-500', text: 'text-white' },
-  open: { label: '開', bg: 'bg-emerald-500', text: 'text-white' },
-  half: { label: '半', bg: 'bg-amber-400', text: 'text-slate-900' },
-  off: { label: '休', bg: 'bg-rose-500', text: 'text-white' },
-};
+type ShiftType = 'normal' | 'open' | 'half' | 'off' | 'none';
 
 interface Employee {
   id: string;
@@ -18,337 +12,398 @@ interface Employee {
 }
 
 interface Shift {
-  id: string;
+  id?: string;
   employee_id: string;
   date: string;
-  shift_type: string;
+  shift_type: ShiftType;
   is_night: boolean;
   store: string;
 }
 
 interface Unavailability {
+  id?: string;
   employee_id: string;
   date: string;
-  store: string;
 }
 
-export default function Home() {
-  const [password, setPassword] = useState('');
-  const [store, setStore] = useState<string | null>(null);
+export default function EmployeePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
-  // 年月選擇
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
+  const [storePassword, setStorePassword] = useState('');
+  const [currentStore, setCurrentStore] = useState<'store1' | 'store2'>('store1');
 
+  // 日期與月份
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+
+  // 資料狀態
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [unavailabilities, setUnavailabilities] = useState<Unavailability[]>([]);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
+
+  // 劃休選擇狀態
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
   // 登入驗證
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '88652358') {
-      setStore('store1');
+    if (storePassword === '88652358') {
+      setCurrentStore('store1');
       setIsAuthenticated(true);
-    } else if (password === '00084258') {
-      setStore('store2');
+    } else if (storePassword === '00084258') {
+      setCurrentStore('store2');
       setIsAuthenticated(true);
     } else {
-      alert('密碼錯誤，請重新輸入！');
+      alert('通行碼錯誤，請確認後再輸入！');
     }
   };
 
   // 載入資料
-  useEffect(() => {
-    if (isAuthenticated && store) {
-      fetchData();
-    }
-  }, [isAuthenticated, store, currentYear, currentMonth]);
-
   const fetchData = async () => {
-    if (!store) return;
-
-    // 取得該分店員工
+    // 1. 抓取該分店所有員工
     const { data: empData } = await supabase
       .from('employees')
       .select('*')
-      .eq('store', store)
-      .eq('is_active', true);
+      .eq('store', currentStore);
     if (empData) setEmployees(empData);
 
-    // 取得當月班表
-    const startDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
-    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-    const endDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    // 2. 抓取當月班表
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
     const { data: shiftData } = await supabase
       .from('shifts')
       .select('*')
-      .eq('store', store)
+      .eq('store', currentStore)
       .gte('date', startDate)
       .lte('date', endDate);
     if (shiftData) setShifts(shiftData);
 
-    // 取得劃休資料
+    // 3. 抓取劃休紀錄
     const { data: unavailData } = await supabase
       .from('unavailability')
       .select('*')
-      .eq('store', store)
       .gte('date', startDate)
       .lte('date', endDate);
     if (unavailData) setUnavailabilities(unavailData);
 
-    // 取得劃班功能開關狀態
-    const { data: sysData } = await supabase
+    // 4. 抓取系統劃休開關
+    const { data: settingsData } = await supabase
       .from('system_settings')
       .select('*')
       .eq('id', 'global')
       .single();
-    if (sysData) setIsSubmissionOpen(sysData.is_submission_open);
+    if (settingsData) {
+      setIsSubmissionOpen(settingsData.is_submission_open);
+    }
   };
 
-  // 切換劃休標記
-  const toggleUnavailability = async (dateStr: string) => {
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated, currentStore, year, month]);
+
+  // 店員點擊進行劃休 / 取消劃休
+  const handleToggleUnavailability = async (empId: string, dateStr: string) => {
     if (!isSubmissionOpen) {
-      alert('目前管理者未開放填寫劃休！');
+      alert('目前店長已鎖定劃休功能，如需異動請聯繫管理者！');
       return;
     }
+
     if (!selectedEmployeeId) {
-      alert('請先在上方選擇您的名字！');
+      alert('請先在上方「選擇您的名字」才能進行劃休喔！');
+      return;
+    }
+
+    if (selectedEmployeeId !== empId) {
+      alert('您只能為自己勾選或取消劃休！');
       return;
     }
 
     const existing = unavailabilities.find(
-      (u) => u.employee_id === selectedEmployeeId && u.date === dateStr
+      (u) => u.employee_id === empId && u.date === dateStr
     );
 
-    if (existing) {
+    if (existing?.id) {
       // 取消劃休
-      await supabase
-        .from('unavailability')
-        .delete()
-        .eq('employee_id', selectedEmployeeId)
-        .eq('date', dateStr)
-        .eq('store', store);
-      setUnavailabilities(unavailabilities.filter((u) => !(u.employee_id === selectedEmployeeId && u.date === dateStr)));
+      await supabase.from('unavailability').delete().eq('id', existing.id);
     } else {
       // 新增劃休
-      await supabase
-        .from('unavailability')
-        .insert({ employee_id: selectedEmployeeId, date: dateStr, store });
-      setUnavailabilities([...unavailabilities, { employee_id: selectedEmployeeId, date: dateStr, store: store! }]);
+      await supabase.from('unavailability').insert({
+        employee_id: empId,
+        date: dateStr,
+      });
     }
+
+    fetchData();
   };
 
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  // 登入介面
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4">
-        <div className="bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700 w-full max-w-md">
-          <h1 className="text-2xl font-bold text-center mb-6 text-indigo-400">店員班表查詢系統</h1>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-slate-300">請輸入店員通行密碼</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="請輸入 8 位數密碼"
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-lg transition"
-            >
-              進入班表總覽
-            </button>
-          </form>
-        </div>
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <form
+          onSubmit={handleLogin}
+          className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200/80 w-full max-w-md text-center"
+        >
+          <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl shadow-sm">
+            📅
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">
+            全店班表系統
+          </h1>
+          <p className="text-sm text-slate-500 mb-6 font-medium">
+            請輸入分店專屬通行碼以查看班表與劃休
+          </p>
+
+          <input
+            type="password"
+            placeholder="請輸入分店通行碼"
+            value={storePassword}
+            onChange={(e) => setStorePassword(e.target.value)}
+            className="w-full p-4 rounded-2xl bg-slate-50 text-slate-800 mb-5 outline-none border border-slate-200 focus:border-indigo-500 focus:bg-white text-center text-lg tracking-widest font-mono transition"
+          />
+
+          <button
+            type="submit"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold py-4 rounded-2xl shadow-md hover:shadow-lg transition"
+          >
+            進入班表總覽
+          </button>
+        </form>
       </div>
     );
   }
 
-  // 產生當月天數陣列
-  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-4 md:p-6">
-      {/* 頂部導覽 */}
-      <header className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800">
-        <div>
-          <h1 className="text-2xl font-bold text-indigo-400">
-            {store === 'store1' ? '一號店' : '二號店'} - 當月全店總班表
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            圖例：
-            <span className="inline-block w-3 h-3 bg-blue-500 rounded-full ml-2 mr-1"></span>正常班(18:30~00:30)
-            <span className="inline-block w-3 h-3 bg-emerald-500 rounded-full ml-2 mr-1"></span>開店班(18:30~00:30)
-            <span className="inline-block w-3 h-3 bg-amber-400 rounded-full ml-2 mr-1"></span>半天班(21:00~00:30)
-            <span className="inline-block w-3 h-3 bg-rose-500 rounded-full ml-2 mr-1"></span>排休
-            <span className="inline-block w-2 h-2 bg-purple-500 rounded-full ml-2 mr-1"></span>+宵夜班
-          </p>
+    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
+      {/* 頂部 Header */}
+      <div className="max-w-[1600px] mx-auto mb-6 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-xs">
+            🏢
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">
+              {currentStore === 'store1' ? '一號店 (88652358)' : '二號店 (00084258)'} 班表總覽
+            </h1>
+            <p className="text-xs text-slate-400 font-medium">全體同仁每日出勤與班別一覽</p>
+          </div>
         </div>
 
-        {/* 年月切換 */}
-        <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
-          <button
-            onClick={() => {
-              if (currentMonth === 1) {
-                setCurrentYear(currentYear - 1);
-                setCurrentMonth(12);
-              } else {
-                setCurrentMonth(currentMonth - 1);
-              }
-            }}
-            className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold"
+        {/* 劃休狀態與員工選單 */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border ${
+              isSubmissionOpen
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-100 text-slate-500 border-slate-200'
+            }`}
           >
-            &lt; 上個月
-          </button>
-          <span className="font-bold text-lg text-indigo-300">
-            {currentYear} 年 {currentMonth} 月
-          </span>
-          <button
-            onClick={() => {
-              if (currentMonth === 12) {
-                setCurrentYear(currentYear + 1);
-                setCurrentMonth(1);
-              } else {
-                setCurrentMonth(currentMonth + 1);
-              }
-            }}
-            className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold"
-          >
-            下個月 &gt;
-          </button>
-        </div>
-      </header>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isSubmissionOpen ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+              }`}
+            />
+            {isSubmissionOpen ? '劃休功能開放中' : '劃休功能已鎖定'}
+          </div>
 
-      {/* 劃休專區 (若開放劃休) */}
-      <div className="max-w-7xl mx-auto mb-6 bg-slate-800 p-4 rounded-xl border border-slate-700">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-sm">🙋 填寫劃休專區：</span>
+          {isSubmissionOpen && (
             <select
               value={selectedEmployeeId}
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              className="bg-slate-700 border border-slate-600 text-white rounded px-3 py-1.5 text-sm"
+              className="bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold outline-none focus:border-indigo-500 cursor-pointer"
             >
-              <option value="">-- 請選擇您的名字 --</option>
+              <option value="">-- 我要劃休（先選名字）--</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.name}
                 </option>
               ))}
             </select>
-          </div>
-          <div className="text-xs">
-            狀態：
-            {isSubmissionOpen ? (
-              <span className="text-emerald-400 font-bold bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-800">
-                🟢 劃班開放中 (請選名字後點擊下方表格劃休)
-              </span>
-            ) : (
-              <span className="text-rose-400 font-bold bg-rose-950 px-2.5 py-1 rounded-full border border-rose-800">
-                🔴 目前未開放填寫劃休
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* 全店班表大圖表 (矩陣格式) */}
-      <div className="max-w-7xl mx-auto overflow-x-auto bg-slate-800 rounded-xl shadow-xl border border-slate-700">
-        <table className="w-full text-center border-collapse min-w-[900px]">
+      {/* 班別圖例說明卡片 */}
+      <div className="max-w-[1600px] mx-auto mb-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-3 font-medium text-slate-600">
+          <span className="font-bold text-slate-400">班別說明：</span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-blue-600 inline-block" /> 正常班 (18:30~00:30)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" /> 開店班 (18:30~00:30)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" /> 半天班 (21:00~00:30)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-purple-600 inline-block" /> 宵夜班 (+宵)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-rose-500 inline-block" /> 店長排休
+          </span>
+        </div>
+
+        {selectedEmployeeId && isSubmissionOpen && (
+          <div className="text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-lg">
+            👉 點選您名字對應的日期格子即可「標記 / 取消」劃休
+          </div>
+        )}
+      </div>
+
+      {/* 月份切換 */}
+      <div className="max-w-[1600px] mx-auto mb-4 flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm">
+        <button
+          onClick={() => {
+            if (month === 1) {
+              setMonth(12);
+              setYear(year - 1);
+            } else {
+              setMonth(month - 1);
+            }
+          }}
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-sm flex items-center gap-1"
+        >
+          <span>&lt;</span> 上個月
+        </button>
+        <span className="text-lg font-black text-slate-800 tracking-tight">
+          {year} 年 {month} 月
+        </span>
+        <button
+          onClick={() => {
+            if (month === 12) {
+              setMonth(1);
+              setYear(year + 1);
+            } else {
+              setMonth(month + 1);
+            }
+          }}
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-sm flex items-center gap-1"
+        >
+          下個月 <span>&gt;</span>
+        </button>
+      </div>
+
+      {/* 全體同仁排班總表格 */}
+      <div className="max-w-[1600px] mx-auto bg-white rounded-2xl border border-slate-200/80 p-2 overflow-x-auto shadow-sm">
+        <table className="w-full border-separate border-spacing-0 min-w-[1300px]">
           <thead>
-            <tr className="bg-slate-950 text-slate-300 text-xs">
-              <th className="p-3 border-b border-r border-slate-700 sticky left-0 bg-slate-950 z-10 w-28">
+            <tr>
+              <th className="sticky left-0 z-20 bg-slate-100/95 backdrop-blur border-b border-r border-slate-200 p-3 text-left min-w-[130px] font-bold text-slate-700 rounded-tl-xl shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                 員工姓名
               </th>
               {daysArray.map((day) => {
-                const dateObj = new Date(currentYear, currentMonth - 1, day);
-                const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+                const dateObj = new Date(year, month - 1, day);
+                const dayOfWeek = dateObj.getDay();
+                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
                 return (
                   <th
                     key={day}
-                    className={`p-2 border-b border-r border-slate-700 font-normal ${
-                      isWeekend ? 'bg-amber-950/30 text-amber-300 font-bold' : ''
+                    className={`border-b border-r border-slate-200 p-2.5 text-center min-w-[76px] ${
+                      isWeekend ? 'bg-indigo-50/50' : 'bg-slate-50/70'
                     }`}
                   >
-                    <div>{day}</div>
-                    <div className="text-[10px] opacity-75">({weekDays[dateObj.getDay()]})</div>
+                    <div className={`text-sm font-black ${isWeekend ? 'text-indigo-600' : 'text-slate-800'}`}>
+                      {day}
+                    </div>
+                    <div className={`text-xs font-semibold ${isWeekend ? 'text-indigo-400' : 'text-slate-400'}`}>
+                      週{dayNames[dayOfWeek]}
+                    </div>
                   </th>
                 );
               })}
             </tr>
           </thead>
           <tbody>
-            {employees.length === 0 ? (
-              <tr>
-                <td colSpan={daysInMonth + 1} className="p-8 text-slate-500">
-                  尚無員工資料
+            {employees.map((emp, idx) => (
+              <tr key={emp.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
+                {/* 左側員工固定列 */}
+                <td className="sticky left-0 z-10 bg-white/95 backdrop-blur border-b border-r border-slate-200 p-3 font-bold text-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        emp.id === selectedEmployeeId ? 'bg-indigo-600' : 'bg-slate-300'
+                      }`}
+                    />
+                    <span className="truncate">{emp.name}</span>
+                  </div>
                 </td>
-              </tr>
-            ) : (
-              employees.map((emp) => (
-                <tr key={emp.id} className="hover:bg-slate-750/50 border-b border-slate-700/50">
-                  {/* 左側名字欄位 */}
-                  <td className="p-3 font-semibold text-sm border-r border-slate-700 sticky left-0 bg-slate-800 z-10 text-indigo-200">
-                    {emp.name}
-                  </td>
 
-                  {/* 每日班別欄位 */}
-                  {daysArray.map((day) => {
-                    const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    
-                    // 尋找當天班別
-                    const shift = shifts.find((s) => s.employee_id === emp.id && s.date === dateStr);
-                    // 尋找當天劃休標記
-                    const isUnavail = unavailabilities.some((u) => u.employee_id === emp.id && u.date === dateStr);
+                {/* 每日班別格子 */}
+                {daysArray.map((day) => {
+                  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const isUnavail = unavailabilities.some(
+                    (u) => u.employee_id === emp.id && u.date === dateStr
+                  );
+                  const shift = shifts.find(
+                    (s) => s.employee_id === emp.id && s.date === dateStr
+                  );
 
-                    const isSelectedUser = emp.id === selectedEmployeeId;
+                  const isSelectable = selectedEmployeeId === emp.id && isSubmissionOpen;
 
-                    return (
-                      <td
-                        key={day}
-                        onClick={() => isSelectedUser && toggleUnavailability(dateStr)}
-                        className={`p-1 border-r border-slate-700/50 text-xs relative transition ${
-                          isSelectedUser && isSubmissionOpen ? 'cursor-pointer hover:bg-slate-700' : ''
-                        }`}
-                      >
-                        <div className="min-h-[40px] flex flex-col items-center justify-center gap-1">
-                          {/* 主班別標籤 */}
-                          {shift && shift.shift_type && SHIFT_TYPES[shift.shift_type] ? (
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[11px] font-bold shadow ${SHIFT_TYPES[shift.shift_type].bg} ${SHIFT_TYPES[shift.shift_type].text}`}
-                            >
-                              {SHIFT_TYPES[shift.shift_type].label}
-                            </span>
-                          ) : isUnavail ? (
-                            <span className="px-1 py-0.5 rounded text-[10px] bg-rose-950 text-rose-400 border border-rose-800">
-                              劃休
-                            </span>
-                          ) : (
-                            <span className="text-slate-600">-</span>
-                          )}
+                  return (
+                    <td
+                      key={day}
+                      onClick={() => {
+                        if (isSelectable) {
+                          handleToggleUnavailability(emp.id, dateStr);
+                        }
+                      }}
+                      className={`border-b border-r border-slate-200 p-1 text-center select-none h-16 relative transition ${
+                        isSelectable
+                          ? 'cursor-pointer hover:bg-indigo-50/80 active:scale-[0.98]'
+                          : ''
+                      }`}
+                    >
+                      {/* 劃休標記 */}
+                      {isUnavail && (
+                        <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 py-0.2 rounded shadow-2xs">
+                          休
+                        </span>
+                      )}
 
-                          {/* 宵夜班標籤 */}
-                          {shift && shift.is_night && (
-                            <span className="px-1 py-0.2 text-[9px] bg-purple-600 text-white rounded-full font-bold">
-                              +宵
-                            </span>
-                          )}
+                      {/* 班別膠囊 */}
+                      {shift?.shift_type === 'normal' && (
+                        <div className="bg-blue-600 text-white rounded-lg py-1 font-bold text-xs shadow-xs">
+                          正常
                         </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
-            )}
+                      )}
+                      {shift?.shift_type === 'open' && (
+                        <div className="bg-emerald-600 text-white rounded-lg py-1 font-bold text-xs shadow-xs">
+                          開店
+                        </div>
+                      )}
+                      {shift?.shift_type === 'half' && (
+                        <div className="bg-amber-500 text-white rounded-lg py-1 font-bold text-xs shadow-xs">
+                          半天
+                        </div>
+                      )}
+                      {shift?.shift_type === 'off' && (
+                        <div className="bg-rose-500 text-white rounded-lg py-1 font-bold text-xs shadow-xs">
+                          排休
+                        </div>
+                      )}
+
+                      {/* 宵夜班標籤 */}
+                      {shift?.is_night && (
+                        <div className="mt-1 inline-block bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none border border-purple-200">
+                          宵夜✓
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
