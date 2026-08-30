@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toPng } from 'html-to-image';
 
 type ShiftType = 'normal' | 'open' | 'half' | 'off' | 'none';
 
@@ -43,6 +44,10 @@ export default function AdminPage() {
   // 排班畫筆工具
   const [activeTool, setActiveTool] = useState<ShiftType>('normal');
   const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  // 班表截圖參照
+  const scheduleTableRef = useRef<HTMLDivElement>(null);
 
   // 登入驗證
   const handleLogin = (e: React.FormEvent) => {
@@ -100,6 +105,31 @@ export default function AdminPage() {
       fetchData();
     }
   }, [isAuthenticated, currentStore, year, month]);
+
+  // 一鍵產生並下載圖檔
+  const handleExportImage = async () => {
+    if (!scheduleTableRef.current) return;
+    try {
+      setIsExporting(true);
+      // 產生高解析度 PNG 圖檔
+      const dataUrl = await toPng(scheduleTableRef.current, {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2, // 2倍解析度，確保手機查看文字超清晰
+      });
+
+      const storeName = currentStore === 'store1' ? '一號店' : '二號店';
+      const link = document.createElement('a');
+      link.download = `${storeName}_${year}年${month}月_排班表.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      alert('產生圖檔失敗，請再試一次！');
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // 切換劃休開關
   const toggleSubmissionOpen = async () => {
@@ -272,18 +302,30 @@ export default function AdminPage() {
           </select>
         </div>
 
-        {/* 劃休開關按鈕 */}
-        <button
-          onClick={toggleSubmissionOpen}
-          className={`px-4 py-2 rounded-xl font-bold transition flex items-center gap-2 shadow-sm ${
-            isSubmissionOpen 
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100' 
-              : 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100'
-          }`}
-        >
-          <span className={`w-2 h-2 rounded-full ${isSubmissionOpen ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-          店員劃休功能：{isSubmissionOpen ? '開放中' : '已鎖定'}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* 下載班表圖檔按鈕 */}
+          <button
+            onClick={handleExportImage}
+            disabled={isExporting}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+          >
+            <span>📷</span>
+            {isExporting ? '產生圖檔中...' : '下載班表圖檔 (傳群組)'}
+          </button>
+
+          {/* 劃休開關按鈕 */}
+          <button
+            onClick={toggleSubmissionOpen}
+            className={`px-4 py-2 rounded-xl font-bold transition flex items-center gap-2 shadow-sm ${
+              isSubmissionOpen 
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100' 
+                : 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isSubmissionOpen ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+            店員劃休功能：{isSubmissionOpen ? '開放中' : '已鎖定'}
+          </button>
+        </div>
       </div>
 
       {/* 畫筆工具列 */}
@@ -347,136 +389,156 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* 排班矩陣大表格 */}
-      <div className="max-w-[1500px] mx-auto bg-white rounded-2xl border border-slate-200 p-2 overflow-x-auto mb-8 shadow-sm">
-        <table className="w-full border-separate border-spacing-0 min-w-[1300px]">
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-20 bg-slate-100/95 backdrop-blur border-b border-r border-slate-200 p-3 text-left min-w-[130px] font-bold text-slate-700 rounded-tl-xl">
-                員工姓名
-              </th>
-              {daysArray.map((day) => {
-                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const dateObj = new Date(year, month - 1, day);
-                const dayOfWeek = dateObj.getDay();
-                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      {/* 排班矩陣大表格（將會被截圖導出） */}
+      <div className="max-w-[1500px] mx-auto overflow-x-auto mb-8">
+        <div 
+          ref={scheduleTableRef} 
+          className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm inline-block min-w-[1300px]"
+        >
+          {/* 截圖專用標題標頭 */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">
+                {currentStore === 'store1' ? '一號店' : '二號店'} {year} 年 {month} 月 正式班表
+              </h2>
+              <p className="text-xs text-slate-400">
+                🔵正常(18:30~00:30) ｜ 🟢開店(18:30~00:30) ｜ 🟡半天(21:00~00:30) ｜ 🟣宵夜(+宵) ｜ 🔴排休
+              </p>
+            </div>
+            <div className="text-xs font-bold text-slate-400">
+              產生時間：{new Date().toLocaleDateString()}
+            </div>
+          </div>
 
-                const dayShifts = shifts.filter((s) => s.date === dateStr);
-                const normalCount = dayShifts.filter((s) => s.shift_type === 'normal').length;
-                const openCount = dayShifts.filter((s) => s.shift_type === 'open').length;
-                const halfCount = dayShifts.filter((s) => s.shift_type === 'half').length;
-                const nightCount = dayShifts.filter((s) => s.is_night).length;
-
-                return (
-                  <th
-                    key={day}
-                    className={`border-b border-r border-slate-200 p-2 text-center min-w-[76px] ${
-                      isWeekend ? 'bg-indigo-50/50' : 'bg-slate-50/70'
-                    }`}
-                  >
-                    <div className={`text-sm font-black ${isWeekend ? 'text-indigo-600' : 'text-slate-800'}`}>
-                      {day}
-                    </div>
-                    <div className={`text-xs ${isWeekend ? 'text-indigo-400 font-bold' : 'text-slate-400'}`}>
-                      週{dayNames[dayOfWeek]}
-                    </div>
-
-                    {/* 當日排班人數即時標籤 */}
-                    <div className="mt-1.5 flex flex-col items-center gap-1 min-h-[42px]">
-                      {(normalCount > 0 || openCount > 0) && (
-                        <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
-                          正 {normalCount + openCount}
-                        </span>
-                      )}
-                      {halfCount > 0 && (
-                        <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
-                          半 {halfCount}
-                        </span>
-                      )}
-                      {nightCount > 0 && (
-                        <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
-                          宵 {nightCount}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {employees.map((emp, idx) => (
-              <tr key={emp.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
-                {/* 左側員工固定列 */}
-                <td className="sticky left-0 z-10 bg-white/95 backdrop-blur border-b border-r border-slate-200 p-2.5 font-bold text-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="truncate">{emp.name}</span>
-                    <button
-                      onClick={() => handleDeleteEmployee(emp.id, emp.name)}
-                      className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-lg transition"
-                      title="刪除此員工"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </td>
-
-                {/* 每日排班格子 */}
+          <table className="w-full border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="bg-slate-100 border-b border-r border-slate-200 p-3 text-left min-w-[120px] font-bold text-slate-700 rounded-tl-xl">
+                  員工姓名
+                </th>
                 {daysArray.map((day) => {
                   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  const isUnavail = unavailabilities.some(
-                    (u) => u.employee_id === emp.id && u.date === dateStr
-                  );
-                  const shift = shifts.find(
-                    (s) => s.employee_id === emp.id && s.date === dateStr
-                  );
+                  const dateObj = new Date(year, month - 1, day);
+                  const dayOfWeek = dateObj.getDay();
+                  const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+                  const dayShifts = shifts.filter((s) => s.date === dateStr);
+                  const normalCount = dayShifts.filter((s) => s.shift_type === 'normal').length;
+                  const openCount = dayShifts.filter((s) => s.shift_type === 'open').length;
+                  const halfCount = dayShifts.filter((s) => s.shift_type === 'half').length;
+                  const nightCount = dayShifts.filter((s) => s.is_night).length;
 
                   return (
-                    <td
+                    <th
                       key={day}
-                      onClick={() => handleCellClick(emp.id, dateStr)}
-                      className="border-b border-r border-slate-200 p-1 text-center cursor-pointer hover:bg-indigo-50/60 transition relative select-none h-16"
+                      className={`border-b border-r border-slate-200 p-2 text-center min-w-[72px] ${
+                        isWeekend ? 'bg-indigo-50/60' : 'bg-slate-50/80'
+                      }`}
                     >
-                      {/* 劃休紅色標註 */}
-                      {isUnavail && (
-                        <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 rounded">
-                          休
-                        </span>
-                      )}
+                      <div className={`text-sm font-black ${isWeekend ? 'text-indigo-600' : 'text-slate-800'}`}>
+                        {day}
+                      </div>
+                      <div className={`text-xs ${isWeekend ? 'text-indigo-400 font-bold' : 'text-slate-400'}`}>
+                        週{dayNames[dayOfWeek]}
+                      </div>
 
-                      {/* 班別膠囊 */}
-                      {shift?.shift_type === 'normal' && (
-                        <div className="bg-blue-600 text-white rounded-lg py-1 font-bold text-xs shadow-sm">正常</div>
-                      )}
-                      {shift?.shift_type === 'open' && (
-                        <div className="bg-emerald-600 text-white rounded-lg py-1 font-bold text-xs shadow-sm">開店</div>
-                      )}
-                      {shift?.shift_type === 'half' && (
-                        <div className="bg-amber-500 text-white rounded-lg py-1 font-bold text-xs shadow-sm">半天</div>
-                      )}
-                      {shift?.shift_type === 'off' && (
-                        <div className="bg-rose-500 text-white rounded-lg py-1 font-bold text-xs shadow-sm">排休</div>
-                      )}
-
-                      {/* 宵夜班切換按鈕 */}
-                      <button
-                        onClick={(e) => handleToggleNight(e, emp.id, dateStr)}
-                        className={`mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-bold transition ${
-                          shift?.is_night
-                            ? 'bg-purple-600 text-white shadow-sm'
-                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
-                        }`}
-                      >
-                        {shift?.is_night ? '宵夜✓' : '+宵'}
-                      </button>
-                    </td>
+                      {/* 當日排班人數即時標籤 */}
+                      <div className="mt-1.5 flex flex-col items-center gap-1 min-h-[42px]">
+                        {(normalCount > 0 || openCount > 0) && (
+                          <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                            正 {normalCount + openCount}
+                          </span>
+                        )}
+                        {halfCount > 0 && (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                            半 {halfCount}
+                          </span>
+                        )}
+                        {nightCount > 0 && (
+                          <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                            宵 {nightCount}
+                          </span>
+                        )}
+                      </div>
+                    </th>
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {employees.map((emp, idx) => (
+                <tr key={emp.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
+                  {/* 左側員工固定列 */}
+                  <td className="bg-white border-b border-r border-slate-200 p-2.5 font-bold text-slate-800">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate">{emp.name}</span>
+                      <button
+                        onClick={() => handleDeleteEmployee(emp.id, emp.name)}
+                        className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-lg transition"
+                        title="刪除此員工"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </td>
+
+                  {/* 每日排班格子 */}
+                  {daysArray.map((day) => {
+                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const isUnavail = unavailabilities.some(
+                      (u) => u.employee_id === emp.id && u.date === dateStr
+                    );
+                    const shift = shifts.find(
+                      (s) => s.employee_id === emp.id && s.date === dateStr
+                    );
+
+                    return (
+                      <td
+                        key={day}
+                        onClick={() => handleCellClick(emp.id, dateStr)}
+                        className="border-b border-r border-slate-200 p-1 text-center cursor-pointer hover:bg-indigo-50/60 transition relative select-none h-16"
+                      >
+                        {/* 劃休紅色標註 */}
+                        {isUnavail && (
+                          <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 rounded">
+                            休
+                          </span>
+                        )}
+
+                        {/* 班別膠囊 */}
+                        {shift?.shift_type === 'normal' && (
+                          <div className="bg-blue-600 text-white rounded-lg py-1 font-bold text-xs shadow-sm">正常</div>
+                        )}
+                        {shift?.shift_type === 'open' && (
+                          <div className="bg-emerald-600 text-white rounded-lg py-1 font-bold text-xs shadow-sm">開店</div>
+                        )}
+                        {shift?.shift_type === 'half' && (
+                          <div className="bg-amber-500 text-white rounded-lg py-1 font-bold text-xs shadow-sm">半天</div>
+                        )}
+                        {shift?.shift_type === 'off' && (
+                          <div className="bg-rose-500 text-white rounded-lg py-1 font-bold text-xs shadow-sm">排休</div>
+                        )}
+
+                        {/* 宵夜班切換按鈕 */}
+                        <button
+                          onClick={(e) => handleToggleNight(e, emp.id, dateStr)}
+                          className={`mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-bold transition ${
+                            shift?.is_night
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                          }`}
+                        >
+                          {shift?.is_night ? '宵夜✓' : '+宵'}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* 底部功能區：新增員工與薪資統計 */}
