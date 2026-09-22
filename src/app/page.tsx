@@ -60,12 +60,11 @@ export default function EmployeePage() {
 
   // 載入資料
   const fetchData = async () => {
-    // 1. 抓取該分店所有員工
     const { data: empData } = await supabase
       .from('employees')
       .select('*')
       .eq('store', currentStore);
-      .order('sort_order', { ascending: true }); // 加入這行照順序排
+      .order('sort_order', { ascending: true }); 
     if (empData) setEmployees(empData);
 
     // 2. 抓取當月班表
