@@ -63,7 +63,7 @@ export default function EmployeePage() {
     const { data: empData } = await supabase
       .from('employees')
       .select('*')
-      .eq('store', currentStore);
+      .eq('store', currentStore)
       .order('sort_order', { ascending: true }); 
     if (empData) setEmployees(empData);
 
