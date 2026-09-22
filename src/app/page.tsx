@@ -65,6 +65,7 @@ export default function EmployeePage() {
       .from('employees')
       .select('*')
       .eq('store', currentStore);
+      .order('sort_order', { ascending: true }); // 加入這行照順序排
     if (empData) setEmployees(empData);
 
     // 2. 抓取當月班表
