@@ -10,6 +10,7 @@ interface Employee {
   id: string;
   name: string;
   store: string;
+  sort_order?: number;
 }
 
 interface Shift {
@@ -41,6 +42,9 @@ export default function AdminPage() {
   const [unavailabilities, setUnavailabilities] = useState<Unavailability[]>([]);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
 
+  // 拖曳排序狀態
+  const [draggedEmployeeIndex, setDraggedEmployeeIndex] = useState<number | null>(null);
+
   // 排班畫筆工具
   const [activeTool, setActiveTool] = useState<ShiftType>('normal');
   const [newEmployeeName, setNewEmployeeName] = useState('');
@@ -59,14 +63,18 @@ export default function AdminPage() {
     }
   };
 
-  // 載入資料
+  // 載入資料（照 sort_order 排序）
   const fetchData = async () => {
-    // 1. 抓取該分店員工
+    // 1. 抓取員工（依 sort_order 升冪排列）
     const { data: empData } = await supabase
       .from('employees')
       .select('*')
-      .eq('store', currentStore);
-    if (empData) setEmployees(empData);
+      .eq('store', currentStore)
+      .order('sort_order', { ascending: true });
+
+    if (empData) {
+      setEmployees(empData);
+    }
 
     // 2. 抓取當月班表
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -89,7 +97,7 @@ export default function AdminPage() {
       .lte('date', endDate);
     if (unavailData) setUnavailabilities(unavailData);
 
-    // 4. 抓取系統劃休開關
+    // 4. 抓取劃休開關
     const { data: settingsData } = await supabase
       .from('system_settings')
       .select('*')
@@ -106,16 +114,52 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, currentStore, year, month]);
 
-  // 一鍵產生並下載圖檔
+  // 拖曳開始
+  const handleDragStart = (index: number) => {
+    setDraggedEmployeeIndex(index);
+  };
+
+  // 拖曳移動經過
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+  };
+
+  // 放置完成並儲存新順序
+  const handleDrop = async (dropIndex: number) => {
+    if (draggedEmployeeIndex === null || draggedEmployeeIndex === dropIndex) return;
+
+    const updatedList = [...employees];
+    const [movedEmp] = updatedList.splice(draggedEmployeeIndex, 1);
+    updatedList.splice(dropIndex, 0, movedEmp);
+
+    // 更新本地順序顯示
+    setEmployees(updatedList);
+    setDraggedEmployeeIndex(null);
+
+    // 批次寫入 Supabase 保存順序
+    try {
+      const updates = updatedList.map((emp, idx) => ({
+        id: emp.id,
+        name: emp.name,
+        store: emp.store,
+        sort_order: idx + 1,
+      }));
+
+      await supabase.from('employees').upsert(updates);
+    } catch (err) {
+      console.error('更新員工順序失敗:', err);
+    }
+  };
+
+  // 截圖匯出圖檔
   const handleExportImage = async () => {
     if (!scheduleTableRef.current) return;
     try {
       setIsExporting(true);
-      // 產生高解析度 PNG 圖檔
       const dataUrl = await toPng(scheduleTableRef.current, {
         cacheBust: true,
         backgroundColor: '#ffffff',
-        pixelRatio: 2, // 2倍解析度，確保手機查看文字超清晰
+        pixelRatio: 2,
       });
 
       const storeName = currentStore === 'store1' ? '一號店' : '二號店';
@@ -150,10 +194,12 @@ export default function AdminPage() {
     e.preventDefault();
     if (!newEmployeeName.trim()) return;
 
+    const nextOrder = employees.length + 1;
     const { error } = await supabase.from('employees').insert({
       name: newEmployeeName.trim(),
       store: currentStore,
       is_active: true,
+      sort_order: nextOrder,
     });
 
     if (error) {
@@ -203,7 +249,7 @@ export default function AdminPage() {
     fetchData();
   };
 
-  // 切換宵夜班
+  // 切換宵夜班狀態
   const handleToggleNight = async (
     e: React.MouseEvent,
     employeeId: string,
@@ -239,6 +285,7 @@ export default function AdminPage() {
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+  // 薪資計算
   const calculateSalary = (empId: string) => {
     const empShifts = shifts.filter((s) => s.employee_id === empId);
     let normalCount = 0;
@@ -284,9 +331,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-6">
-      {/* 頂部管理導航列 */}
-      <div className="max-w-[1500px] mx-auto mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
+      {/* 頂部導航列 */}
+      <div className="max-w-[1600px] mx-auto mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">📋</span>
@@ -295,7 +342,7 @@ export default function AdminPage() {
           <select
             value={currentStore}
             onChange={(e) => setCurrentStore(e.target.value as 'store1' | 'store2')}
-            className="bg-slate-100 text-slate-800 px-3 py-2 rounded-xl border border-slate-300 font-bold outline-none focus:border-indigo-500 cursor-pointer"
+            className="bg-slate-100 text-slate-800 px-3 py-2 rounded-xl border border-slate-300 font-bold outline-none focus:border-indigo-500 cursor-pointer text-sm"
           >
             <option value="store1">一號店 (88652358)</option>
             <option value="store2">二號店 (00084258)</option>
@@ -303,50 +350,49 @@ export default function AdminPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* 下載班表圖檔按鈕 */}
           <button
             onClick={handleExportImage}
             disabled={isExporting}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-bold transition flex items-center gap-2 shadow-xs text-sm cursor-pointer disabled:opacity-50"
           >
             <span>📷</span>
-            {isExporting ? '產生圖檔中...' : '下載班表圖檔 (傳群組)'}
+            {isExporting ? '產生圖檔中...' : '下載班表圖檔'}
           </button>
 
-          {/* 劃休開關按鈕 */}
           <button
             onClick={toggleSubmissionOpen}
-            className={`px-4 py-2 rounded-xl font-bold transition flex items-center gap-2 shadow-sm ${
+            className={`px-4 py-2 rounded-xl font-bold transition text-sm flex items-center gap-2 shadow-xs ${
               isSubmissionOpen 
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100' 
                 : 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100'
             }`}
           >
             <span className={`w-2 h-2 rounded-full ${isSubmissionOpen ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-            店員劃休功能：{isSubmissionOpen ? '開放中' : '已鎖定'}
+            店員劃休：{isSubmissionOpen ? '開放中' : '已鎖定'}
           </button>
         </div>
       </div>
 
       {/* 畫筆工具列 */}
-      <div className="max-w-[1500px] mx-auto mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-          🖌️ 請選擇排班畫筆（點擊後直接連點表格排班）：
+      <div className="max-w-[1600px] mx-auto mb-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+          <span>🖌️ 排班畫筆（點選後直接點擊格子填入）：</span>
+          <span className="text-indigo-600 font-normal">💡 小技巧：按住左側「⋮⋮」圖示可上下拖曳調整員工排序</span>
         </div>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap gap-2">
           {[
-            { type: 'normal', label: '🔵 正常班 (18:30~00:30)', activeClass: 'bg-blue-600 text-white shadow-md' },
-            { type: 'open', label: '🟢 開店班 (18:30~00:30)', activeClass: 'bg-emerald-600 text-white shadow-md' },
-            { type: 'half', label: '🟡 半天班 (21:00~00:30)', activeClass: 'bg-amber-500 text-white shadow-md' },
-            { type: 'off', label: '🔴 管理者排休', activeClass: 'bg-rose-500 text-white shadow-md' },
-            { type: 'none', label: '⚪ 橡皮擦 (清除班別)', activeClass: 'bg-slate-700 text-white shadow-md' },
+            { type: 'normal', label: '🔵 正常班 (18:30~00:30)', activeClass: 'bg-blue-600 text-white' },
+            { type: 'open', label: '🟢 開店班 (18:30~00:30)', activeClass: 'bg-emerald-600 text-white' },
+            { type: 'half', label: '🟡 半天班 (21:00~00:30)', activeClass: 'bg-amber-500 text-white' },
+            { type: 'off', label: '🔴 管理者排休', activeClass: 'bg-rose-500 text-white' },
+            { type: 'none', label: '⚪ 橡皮擦 (清除)', activeClass: 'bg-slate-700 text-white' },
           ].map((tool) => (
             <button
               key={tool.type}
               onClick={() => setActiveTool(tool.type as ShiftType)}
-              className={`px-3.5 py-2 rounded-xl text-sm font-bold transition border ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
                 activeTool === tool.type
-                  ? tool.activeClass + ' border-transparent'
+                  ? tool.activeClass + ' border-transparent shadow-xs'
                   : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
               }`}
             >
@@ -356,8 +402,8 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 月份選擇器 */}
-      <div className="max-w-[1500px] mx-auto mb-4 flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+      {/* 月份切換 */}
+      <div className="max-w-[1600px] mx-auto mb-4 flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
         <button
           onClick={() => {
             if (month === 1) {
@@ -367,12 +413,12 @@ export default function AdminPage() {
               setMonth(month - 1);
             }
           }}
-          className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-sm"
+          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-xs"
         >
           &lt; 上個月
         </button>
-        <span className="text-lg font-black text-slate-800">
-          {year} 年 {month} 月 排班矩陣
+        <span className="text-base font-black text-slate-800">
+          {year} 年 {month} 月 排班畫板
         </span>
         <button
           onClick={() => {
@@ -383,38 +429,21 @@ export default function AdminPage() {
               setMonth(month + 1);
             }
           }}
-          className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-sm"
+          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-xs"
         >
           下個月 &gt;
         </button>
       </div>
 
-      {/* 排班矩陣大表格（將會被截圖導出） */}
-      <div className="max-w-[1500px] mx-auto overflow-x-auto mb-8">
-        <div 
-          ref={scheduleTableRef} 
-          className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm inline-block min-w-[1300px]"
-        >
-          {/* 截圖專用標題標頭 */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">
-                {currentStore === 'store1' ? '一號店' : '二號店'} {year} 年 {month} 月 正式班表
-              </h2>
-              <p className="text-xs text-slate-400">
-                🔵正常(18:30~00:30) ｜ 🟢開店(18:30~00:30) ｜ 🟡半天(21:00~00:30) ｜ 🟣宵夜(+宵) ｜ 🔴排休
-              </p>
-            </div>
-            <div className="text-xs font-bold text-slate-400">
-              產生時間：{new Date().toLocaleDateString()}
-            </div>
-          </div>
-
+      {/* 排班大矩陣：支援橫向滾動且左側員工欄絕對凍結 (Sticky) */}
+      <div className="max-w-[1600px] mx-auto overflow-x-auto mb-8 border border-slate-200/90 rounded-2xl shadow-sm bg-white">
+        <div ref={scheduleTableRef} className="inline-block min-w-full align-middle">
           <table className="w-full border-separate border-spacing-0">
             <thead>
-              <tr>
-                <th className="bg-slate-100 border-b border-r border-slate-200 p-3 text-left min-w-[120px] font-bold text-slate-700 rounded-tl-xl">
-                  員工姓名
+              <tr className="bg-slate-50">
+                {/* 凍結欄：左側員工姓名（Sticky Left-0） */}
+                <th className="sticky left-0 z-30 bg-slate-100/95 backdrop-blur-sm border-b border-r border-slate-200 p-3 text-left w-[160px] min-w-[160px] font-bold text-slate-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)]">
+                  員工排序 / 姓名
                 </th>
                 {daysArray.map((day) => {
                   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -432,31 +461,31 @@ export default function AdminPage() {
                   return (
                     <th
                       key={day}
-                      className={`border-b border-r border-slate-200 p-2 text-center min-w-[72px] ${
-                        isWeekend ? 'bg-indigo-50/60' : 'bg-slate-50/80'
+                      className={`border-b border-r border-slate-200 p-2 text-center min-w-[70px] ${
+                        isWeekend ? 'bg-indigo-50/50' : 'bg-slate-50'
                       }`}
                     >
                       <div className={`text-sm font-black ${isWeekend ? 'text-indigo-600' : 'text-slate-800'}`}>
                         {day}
                       </div>
-                      <div className={`text-xs ${isWeekend ? 'text-indigo-400 font-bold' : 'text-slate-400'}`}>
+                      <div className={`text-[11px] font-semibold ${isWeekend ? 'text-indigo-400' : 'text-slate-400'}`}>
                         週{dayNames[dayOfWeek]}
                       </div>
 
                       {/* 當日排班人數即時標籤 */}
-                      <div className="mt-1.5 flex flex-col items-center gap-1 min-h-[42px]">
+                      <div className="mt-1 flex flex-col items-center gap-0.5 min-h-[40px]">
                         {(normalCount > 0 || openCount > 0) && (
-                          <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                          <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none">
                             正 {normalCount + openCount}
                           </span>
                         )}
                         {halfCount > 0 && (
-                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none">
                             半 {halfCount}
                           </span>
                         )}
                         {nightCount > 0 && (
-                          <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                          <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none">
                             宵 {nightCount}
                           </span>
                         )}
@@ -467,23 +496,41 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {employees.map((emp, idx) => (
-                <tr key={emp.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
-                  {/* 左側員工固定列 */}
-                  <td className="bg-white border-b border-r border-slate-200 p-2.5 font-bold text-slate-800">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="truncate">{emp.name}</span>
+              {employees.map((emp, index) => (
+                <tr
+                  key={emp.id}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={() => handleDrop(index)}
+                  className={`group hover:bg-slate-50/80 transition ${
+                    draggedEmployeeIndex === index ? 'opacity-40 bg-indigo-50' : ''
+                  }`}
+                >
+                  {/* 核心優化：左側凍結欄（Sticky Left-0 永遠留在最左側） */}
+                  <td className="sticky left-0 z-20 bg-white group-hover:bg-slate-50 border-b border-r border-slate-200 p-2.5 font-bold text-slate-800 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)] select-none">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 overflow-hidden">
+                        {/* 拖曳手柄圖示 */}
+                        <span 
+                          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-indigo-600 px-0.5 text-sm font-mono"
+                          title="拖曳調整順序"
+                        >
+                          ⋮⋮
+                        </span>
+                        <span className="truncate text-sm font-bold text-slate-800">{emp.name}</span>
+                      </div>
                       <button
                         onClick={() => handleDeleteEmployee(emp.id, emp.name)}
-                        className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-lg transition"
-                        title="刪除此員工"
+                        className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 px-1 py-0.5 rounded transition text-xs"
+                        title="刪除"
                       >
                         ✕
                       </button>
                     </div>
                   </td>
 
-                  {/* 每日排班格子 */}
+                  {/* 每日班別格子 */}
                   {daysArray.map((day) => {
                     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const isUnavail = unavailabilities.some(
@@ -497,35 +544,35 @@ export default function AdminPage() {
                       <td
                         key={day}
                         onClick={() => handleCellClick(emp.id, dateStr)}
-                        className="border-b border-r border-slate-200 p-1 text-center cursor-pointer hover:bg-indigo-50/60 transition relative select-none h-16"
+                        className="border-b border-r border-slate-200 p-1 text-center cursor-pointer hover:bg-indigo-50/70 transition relative select-none h-15"
                       >
-                        {/* 劃休紅色標註 */}
+                        {/* 劃休標籤 */}
                         {isUnavail && (
                           <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 rounded">
                             休
                           </span>
                         )}
 
-                        {/* 班別膠囊 */}
+                        {/* 主班別膠囊 */}
                         {shift?.shift_type === 'normal' && (
-                          <div className="bg-blue-600 text-white rounded-lg py-1 font-bold text-xs shadow-sm">正常</div>
+                          <div className="bg-blue-600 text-white rounded-md py-1 font-bold text-xs shadow-2xs">正常</div>
                         )}
                         {shift?.shift_type === 'open' && (
-                          <div className="bg-emerald-600 text-white rounded-lg py-1 font-bold text-xs shadow-sm">開店</div>
+                          <div className="bg-emerald-600 text-white rounded-md py-1 font-bold text-xs shadow-2xs">開店</div>
                         )}
                         {shift?.shift_type === 'half' && (
-                          <div className="bg-amber-500 text-white rounded-lg py-1 font-bold text-xs shadow-sm">半天</div>
+                          <div className="bg-amber-500 text-white rounded-md py-1 font-bold text-xs shadow-2xs">半天</div>
                         )}
                         {shift?.shift_type === 'off' && (
-                          <div className="bg-rose-500 text-white rounded-lg py-1 font-bold text-xs shadow-sm">排休</div>
+                          <div className="bg-rose-500 text-white rounded-md py-1 font-bold text-xs shadow-2xs">排休</div>
                         )}
 
-                        {/* 宵夜班切換按鈕 */}
+                        {/* 宵夜班按鈕 */}
                         <button
                           onClick={(e) => handleToggleNight(e, emp.id, dateStr)}
-                          className={`mt-1 text-[10px] px-1.5 py-0.5 rounded-md font-bold transition ${
+                          className={`mt-1 text-[10px] px-1 py-0.2 rounded font-bold transition ${
                             shift?.is_night
-                              ? 'bg-purple-600 text-white shadow-sm'
+                              ? 'bg-purple-600 text-white shadow-2xs'
                               : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
                           }`}
                         >
@@ -542,21 +589,21 @@ export default function AdminPage() {
       </div>
 
       {/* 底部功能區：新增員工與薪資統計 */}
-      <div className="max-w-[1500px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 新增店員卡片 */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 新增店員 */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div>
             <h2 className="text-base font-black text-slate-800 mb-1">新增店員名單</h2>
-            <p className="text-xs text-slate-400 mb-4">將新員工加入目前選擇的分店</p>
+            <p className="text-xs text-slate-400 mb-3">新加入的員工預設會排在最下方</p>
             <form onSubmit={handleAddEmployee} className="flex gap-2">
               <input
                 type="text"
                 placeholder="輸入店員姓名"
                 value={newEmployeeName}
                 onChange={(e) => setNewEmployeeName(e.target.value)}
-                className="flex-1 p-3 rounded-xl bg-slate-50 text-slate-800 outline-none border border-slate-200 focus:border-indigo-500 focus:bg-white text-sm transition"
+                className="flex-1 p-2.5 rounded-xl bg-slate-50 text-slate-800 outline-none border border-slate-200 focus:border-indigo-500 focus:bg-white text-sm transition"
               />
-              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-3 rounded-xl text-sm transition shadow-sm">
+              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition shadow-xs">
                 新增
               </button>
             </form>
@@ -564,23 +611,23 @@ export default function AdminPage() {
         </div>
 
         {/* 薪資統計卡片 */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-base font-black text-slate-800">{month} 月份薪資自動統計表</h2>
-              <p className="text-xs text-slate-400">固定時薪 $210 / 宵夜班不計薪</p>
+              <h2 className="text-base font-black text-slate-800">{month} 月份薪資自動統計</h2>
+              <p className="text-xs text-slate-400">時薪 $210 / 宵夜班不計薪</p>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-400 text-xs">
-                  <th className="py-2.5 font-bold">姓名</th>
-                  <th className="py-2.5 font-bold">正常/開店 (6h)</th>
-                  <th className="py-2.5 font-bold">半天 (3.5h)</th>
-                  <th className="py-2.5 font-bold">宵夜 (0h)</th>
-                  <th className="py-2.5 font-bold">總工時</th>
-                  <th className="py-2.5 font-bold text-emerald-600 text-right">預估總薪資</th>
+                  <th className="py-2 font-bold">姓名</th>
+                  <th className="py-2 font-bold">正常/開店 (6h)</th>
+                  <th className="py-2 font-bold">半天 (3.5h)</th>
+                  <th className="py-2 font-bold">宵夜 (0h)</th>
+                  <th className="py-2 font-bold">總工時</th>
+                  <th className="py-2 font-bold text-emerald-600 text-right">預估總薪資</th>
                 </tr>
               </thead>
               <tbody>
@@ -588,12 +635,12 @@ export default function AdminPage() {
                   const salary = calculateSalary(emp.id);
                   return (
                     <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                      <td className="py-3 font-bold text-slate-800">{emp.name}</td>
-                      <td className="py-3 text-slate-600">{salary.normalCount + salary.openCount} 次</td>
-                      <td className="py-3 text-slate-600">{salary.halfCount} 次</td>
-                      <td className="py-3 text-slate-600">{salary.nightCount} 次</td>
-                      <td className="py-3 font-mono font-bold text-indigo-600">{salary.totalHours} 小時</td>
-                      <td className="py-3 font-mono font-black text-emerald-600 text-right text-base">
+                      <td className="py-2.5 font-bold text-slate-800">{emp.name}</td>
+                      <td className="py-2.5 text-slate-600">{salary.normalCount + salary.openCount} 次</td>
+                      <td className="py-2.5 text-slate-600">{salary.halfCount} 次</td>
+                      <td className="py-2.5 text-slate-600">{salary.nightCount} 次</td>
+                      <td className="py-2.5 font-mono font-bold text-indigo-600">{salary.totalHours} 小時</td>
+                      <td className="py-2.5 font-mono font-black text-emerald-600 text-right text-base">
                         ${salary.totalPay.toLocaleString()}
                       </td>
                     </tr>
