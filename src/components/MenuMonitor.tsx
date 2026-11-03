@@ -16,7 +16,10 @@ interface HistoryRow {
   checked_at: string;
   item_issues: number;
   tag_issues: number;
+  result: MenuCheckResult;
 }
+
+const PAGE_SIZE = 24;
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString('zh-TW', {
@@ -29,29 +32,58 @@ const fmtTime = (iso: string) =>
   });
 
 export default function MenuMonitor() {
-  const [data, setData] = useState<MenuCheckResult | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null); // null = 看最新一筆
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const inWindow = isInMonitorWindow(new Date());
 
-  // 讀取排程存下來的最新結果與最近紀錄
-  const loadSaved = useCallback(async () => {
+  const selected = history.find((h) => h.id === selectedId) ?? history[0] ?? null;
+  const data: MenuCheckResult | null = selected?.result ?? null;
+  const viewingOld = !!selectedId && selected?.id !== history[0]?.id;
+
+  // 讀取排程存下來的紀錄（最新的在前面）
+  const fetchRows = useCallback(async (from: number) => {
     const { data: rows, error: dbError } = await supabase
       .from('menu_checks')
       .select('id, checked_at, item_issues, tag_issues, result')
       .order('checked_at', { ascending: false })
-      .limit(24);
+      .range(from, from + PAGE_SIZE - 1);
     if (dbError) {
       setError(`讀取紀錄失敗：${dbError.message}`);
-      return;
+      return null;
     }
-    if (rows && rows.length > 0) {
-      setData(rows[0].result as MenuCheckResult);
-      setHistory(rows.map(({ id, checked_at, item_issues, tag_issues }) => ({ id, checked_at, item_issues, tag_issues })));
-    }
+    return (rows ?? []) as HistoryRow[];
   }, []);
+
+  const loadSaved = useCallback(async () => {
+    const rows = await fetchRows(0);
+    if (!rows) return;
+    setHistory((prev) => {
+      // 已經載入的舊紀錄保留，只更新最新那一段
+      const ids = new Set(rows.map((r) => r.id));
+      return [...rows, ...prev.filter((p) => !ids.has(p.id) && p.checked_at < (rows[rows.length - 1]?.checked_at ?? ''))];
+    });
+    setHasMore(rows.length === PAGE_SIZE);
+  }, [fetchRows]);
+
+  const loadMore = async () => {
+    const rows = await fetchRows(history.length);
+    if (!rows) return;
+    setHistory((prev) => [...prev, ...rows.filter((r) => !prev.some((p) => p.id === r.id))]);
+    setHasMore(rows.length === PAGE_SIZE);
+  };
+
+  const issueList = (r: MenuCheckResult) => [
+    ...r.categories.flatMap((c) =>
+      c.items
+        .filter((i) => i.status !== 'ok')
+        .map((i) => `${i.status === 'soldout' ? '❌' : '🚫'} ${i.name}`)
+    ),
+    ...r.tagIssues.map((t) => `⚠️ ${t}`),
+  ];
 
   // 手動立即掃描（結果也會存進資料庫）
   const runCheck = useCallback(async () => {
@@ -61,6 +93,7 @@ export default function MenuMonitor() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setError('');
+      setSelectedId(null);
       await loadSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -114,6 +147,18 @@ export default function MenuMonitor() {
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl font-bold text-sm">
           ❌ 偵測系統連線失敗：{error}
+        </div>
+      )}
+
+      {viewingOld && selected && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl font-bold text-sm flex flex-wrap items-center justify-between gap-2">
+          <span>🕒 正在查看 {fmtTime(selected.checked_at)} 的掃描紀錄</span>
+          <button
+            onClick={() => setSelectedId(null)}
+            className="px-3 py-1.5 bg-white border border-amber-300 rounded-lg hover:bg-amber-100 text-xs"
+          >
+            回到最新結果
+          </button>
         </div>
       )}
 
@@ -211,28 +256,54 @@ export default function MenuMonitor() {
             )}
           </div>
 
-          {/* 最近掃描紀錄 */}
+          {/* 掃描紀錄 */}
           {history.length > 0 && (
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <h3 className="font-black text-slate-800 mb-3">🕒 最近掃描紀錄</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-black text-slate-800">🕒 掃描紀錄</h3>
+                <span className="text-xs text-slate-400">點任一筆可查看當時的完整結果（保留 30 天）</span>
+              </div>
+              <div className="space-y-2">
                 {history.map((h) => {
                   const bad = h.item_issues + h.tag_issues > 0;
+                  const isSel = h.id === selected?.id;
+                  const issues = issueList(h.result);
                   return (
-                    <div
+                    <button
                       key={h.id}
-                      className={`text-xs px-3 py-2 rounded-xl border flex justify-between ${
-                        bad ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-500'
+                      onClick={() => {
+                        setSelectedId(h.id);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`w-full text-left text-xs px-3 py-2.5 rounded-xl border transition ${
+                        isSel
+                          ? 'ring-2 ring-indigo-400 border-indigo-300 bg-indigo-50'
+                          : bad
+                          ? 'bg-rose-50 border-rose-200 hover:bg-rose-100'
+                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      <span>{fmtTime(h.checked_at)}</span>
-                      <span className="font-bold">
-                        {bad ? `品項 ${h.item_issues}・標籤 ${h.tag_issues}` : '全部正常'}
-                      </span>
-                    </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="font-bold text-slate-700">{fmtTime(h.checked_at)}</span>
+                        <span className={`font-bold ${bad ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {bad ? `品項 ${h.item_issues}・標籤 ${h.tag_issues}` : '✅ 全部正常'}
+                        </span>
+                      </div>
+                      {bad && (
+                        <div className="mt-1.5 text-rose-700 leading-relaxed">{issues.join('、')}</div>
+                      )}
+                    </button>
                   );
                 })}
               </div>
+              {hasMore && (
+                <button
+                  onClick={loadMore}
+                  className="mt-3 w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold transition"
+                >
+                  載入更早的紀錄
+                </button>
+              )}
             </div>
           )}
         </>
