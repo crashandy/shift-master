@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toPng } from 'html-to-image';
+import MenuMonitor from '@/components/MenuMonitor';
 
 type ShiftType = 'normal' | 'open' | 'half' | 'off' | 'none';
 
@@ -29,6 +30,7 @@ interface Unavailability {
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [view, setView] = useState<'schedule' | 'monitor'>('schedule');
   const [password, setPassword] = useState('');
   const [currentStore, setCurrentStore] = useState<'store1' | 'store2'>('store1');
 
@@ -339,6 +341,23 @@ export default function AdminPage() {
             <span className="text-xl">📋</span>
             <h1 className="text-xl font-black text-slate-900">管理者排班系統</h1>
           </div>
+          <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-bold">
+            {[
+              { key: 'schedule', label: '📅 排班' },
+              { key: 'monitor', label: '🐔 品項監測' },
+            ].map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setView(t.key as 'schedule' | 'monitor')}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  view === t.key ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {view === 'schedule' && (
           <select
             value={currentStore}
             onChange={(e) => setCurrentStore(e.target.value as 'store1' | 'store2')}
@@ -347,8 +366,10 @@ export default function AdminPage() {
             <option value="store1">一號店 (88652358)</option>
             <option value="store2">二號店 (00084258)</option>
           </select>
+          )}
         </div>
 
+        {view === 'schedule' && (
         <div className="flex items-center gap-3">
           <button
             onClick={handleExportImage}
@@ -371,7 +392,13 @@ export default function AdminPage() {
             店員劃休：{isSubmissionOpen ? '開放中' : '已鎖定'}
           </button>
         </div>
+        )}
       </div>
+
+      {view === 'monitor' ? (
+        <MenuMonitor />
+      ) : (
+      <>
 
       {/* 畫筆工具列 */}
       <div className="max-w-[1600px] mx-auto mb-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -651,6 +678,8 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
