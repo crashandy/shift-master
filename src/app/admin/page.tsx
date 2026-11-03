@@ -3,7 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toPng } from 'html-to-image';
+import Link from 'next/link';
 import MenuMonitor from '@/components/MenuMonitor';
+import RecordsPanel from '@/components/admin/RecordsPanel';
+import SettingsPanel from '@/components/admin/SettingsPanel';
+
+type AdminView = 'schedule' | 'records' | 'settings' | 'monitor';
 
 type ShiftType = 'normal' | 'open' | 'half' | 'off' | 'none';
 
@@ -30,7 +35,7 @@ interface Unavailability {
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [view, setView] = useState<'schedule' | 'monitor'>('schedule');
+  const [view, setView] = useState<AdminView>('schedule');
   const [password, setPassword] = useState('');
   const [currentStore, setCurrentStore] = useState<'store1' | 'store2'>('store1');
 
@@ -55,10 +60,20 @@ export default function AdminPage() {
   // 班表截圖參照
   const scheduleTableRef = useRef<HTMLDivElement>(null);
 
+  // 同一個瀏覽器分頁重新整理時不用重新登入
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('18c_admin') === '1') setIsAuthenticated(true);
+    } catch {}
+  }, []);
+
   // 登入驗證
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === 'admin888') {
+      try {
+        sessionStorage.setItem('18c_admin', '1');
+      } catch {}
       setIsAuthenticated(true);
     } else {
       alert('密碼錯誤！');
@@ -336,19 +351,24 @@ export default function AdminPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
       {/* 頂部導航列 */}
       <div className="max-w-[1600px] mx-auto mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
+            <Link href="/" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold">
+              ← 入口
+            </Link>
             <span className="text-xl">📋</span>
-            <h1 className="text-xl font-black text-slate-900">管理者排班系統</h1>
+            <h1 className="text-xl font-black text-slate-900">管理後台</h1>
           </div>
           <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-bold">
             {[
               { key: 'schedule', label: '📅 排班' },
+              { key: 'records', label: '📋 表單紀錄' },
+              { key: 'settings', label: '⚙️ 表單設定' },
               { key: 'monitor', label: '🐔 品項監測' },
             ].map((t) => (
               <button
                 key={t.key}
-                onClick={() => setView(t.key as 'schedule' | 'monitor')}
+                onClick={() => setView(t.key as AdminView)}
                 className={`px-3 py-1.5 rounded-lg transition ${
                   view === t.key ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
                 }`}
@@ -357,7 +377,7 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-          {view === 'schedule' && (
+          {view !== 'monitor' && (
           <select
             value={currentStore}
             onChange={(e) => setCurrentStore(e.target.value as 'store1' | 'store2')}
@@ -397,6 +417,10 @@ export default function AdminPage() {
 
       {view === 'monitor' ? (
         <MenuMonitor />
+      ) : view === 'records' ? (
+        <RecordsPanel store={currentStore} />
+      ) : view === 'settings' ? (
+        <SettingsPanel store={currentStore} />
       ) : (
       <>
 
