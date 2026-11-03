@@ -1,11 +1,7 @@
 // 伺服器端專用：掃描肚肚點餐頁 → 存進 Supabase → 有新異常時推播 LINE
 import { createClient } from '@supabase/supabase-js';
-import {
-  DUDOO_MENU_URL,
-  MenuCheckResult,
-  countItemIssues,
-  parseMenuHtml,
-} from '@/lib/menuConfig';
+import { MenuCheckResult, countItemIssues, parseMenuData } from '@/lib/menuConfig';
+import { fetchDudooMenu } from '@/lib/dudooApi';
 
 function getServerSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -15,16 +11,11 @@ function getServerSupabase() {
 }
 
 export async function scanMenu(): Promise<MenuCheckResult> {
-  const res = await fetch(DUDOO_MENU_URL, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`點餐頁回應異常（HTTP ${res.status}）`);
-  const html = await res.text();
-  return { checkedAt: new Date().toISOString(), ...parseMenuHtml(html) };
+  const r = await fetchDudooMenu();
+  if (r.menuStatus !== 200 || !r.data || !Array.isArray(r.data.item) || r.data.item.length === 0) {
+    throw new Error(`取得肚肚菜單失敗（HTTP ${r.menuStatus}）`);
+  }
+  return { checkedAt: new Date().toISOString(), ...parseMenuData(r.data) };
 }
 
 // 把異常項目整理成一串文字，用來判斷「跟上一次比有沒有變」
