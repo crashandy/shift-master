@@ -114,3 +114,59 @@ export function countItemIssues(result: Pick<MenuCheckResult, 'categories'>) {
     0
   );
 }
+
+// ===== 用肚肚的菜單資料 (JSON) 判斷，邏輯比照肚肚網頁本身 =====
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const isTrue = (v: any) => v === true || v === 1 || v === '1' || v === 'true';
+
+export function parseMenuData(data: any): Omit<MenuCheckResult, 'checkedAt'> {
+  const items: any[] = Array.isArray(data?.item) ? data.item : [];
+  const kioskOff = String(data?.config?.kiosk_enabled) === '0';
+
+  const findItem = (name: string) =>
+    items.find((v) => !isTrue(v.deleted) && !isTrue(v.pos_only) && String(v.item_name ?? '').trim() === name) ??
+    items.find((v) => !isTrue(v.deleted) && !isTrue(v.pos_only) && String(v.item_name ?? '').includes(name));
+
+  const categories = Object.entries(MENU_DATABASE).map(([name, list]) => ({
+    name,
+    items: list.map((itemName) => {
+      const v = findItem(itemName);
+      if (!v) return { name: itemName, status: 'missing' as ItemStatus };
+      const soldOut = kioskOff || isTrue(v.disabled) || isTrue(v.stock_disabled);
+      return { name: itemName, status: (soldOut ? 'soldout' : 'ok') as ItemStatus };
+    }),
+  }));
+
+  // 加選標籤：在整份資料裡找名稱相符的物件
+  const tagIssues: string[] = [];
+  const nodes = findObjectsWithName(data, REQUIRED_SUB_TAGS);
+  for (const tag of REQUIRED_SUB_TAGS) {
+    const found = nodes.filter((n) => n.name === tag && !isTrue(n.obj.deleted));
+    if (found.length === 0) {
+      tagIssues.push(`${tag}（後台未勾選/遺失）`);
+    } else if (found.every((n) => isTrue(n.obj.disabled) || isTrue(n.obj.stock_disabled) || isTrue(n.obj.sold_out))) {
+      tagIssues.push(`${tag}（顯示售完）`);
+    }
+  }
+
+  return { categories, tagIssues };
+}
+
+// 遞迴找出「某個字串欄位等於指定名稱」的物件
+export function findObjectsWithName(root: any, names: string[]) {
+  const out: { name: string; path: string; obj: any }[] = [];
+  const walk = (node: any, path: string, depth: number) => {
+    if (!node || typeof node !== 'object' || depth > 8 || out.length > 200) return;
+    if (!Array.isArray(node)) {
+      for (const val of Object.values(node)) {
+        if (typeof val === 'string' && names.includes(val.trim())) {
+          out.push({ name: val.trim(), path, obj: node });
+          break;
+        }
+      }
+    }
+    for (const [k, v] of Object.entries(node)) walk(v, `${path}.${k}`, depth + 1);
+  };
+  walk(root, 'data', 0);
+  return out;
+}

@@ -1,7 +1,8 @@
 // 管理頁「立即掃描」按鈕用：馬上掃一次並存進資料庫（不推播 LINE）
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { scanAndSave } from '@/lib/menuCheckRunner';
-import { DUDOO_MENU_URL } from '@/lib/menuConfig';
+import { fetchDudooMenu } from '@/lib/dudooApi';
+import { REQUIRED_SUB_TAGS, findObjectsWithName, parseMenuData } from '@/lib/menuConfig';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,43 +17,56 @@ export async function POST() {
   }
 }
 
-// 診斷用：瀏覽器打開 /api/menu-check 就能看到 Vercel 實際抓到什麼
-export async function GET() {
+// 診斷用：瀏覽器打開 /api/menu-check 看肚肚菜單資料的實際內容
+// 可加參數測試：/api/menu-check?orderType=onsite&mealTimeId=123
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(DUDOO_MENU_URL, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9',
-      },
-      cache: 'no-store',
+    const sp = req.nextUrl.searchParams;
+    const r = await fetchDudooMenu({
+      mealTimeId: sp.get('mealTimeId') ?? undefined,
+      orderType: sp.get('orderType') ?? undefined,
     });
-    const html = await res.text();
-    // 品項是用 JavaScript 載入的：找出載入菜單的 API 與判斷「售完」的程式片段
-    const contexts = (pattern: RegExp, before: number, after: number, max: number) => {
-      const out: string[] = [];
-      for (const m of html.matchAll(pattern)) {
-        const i = m.index ?? 0;
-        out.push(html.slice(Math.max(0, i - before), i + after));
-        if (out.length >= max) break;
-      }
-      return out;
-    };
+    const d: any = r.data;
+    const items: any[] = Array.isArray(d?.item) ? d.item : [];
 
-    // 所有出現過的 API 路徑（含相對路徑）
-    const apiPaths = Array.from(
-      new Set(html.match(/["'`](?:https?:\/\/[^"'`\s]*)?\/api\/[^"'`\s]+["'`]/g) ?? [])
-    );
+    // 網頁裡 mealTimeId 是怎麼決定的
+    const html = r.pageHtml;
+    const mealTimeContexts: string[] = [];
+    for (const m of html.matchAll(/mealTimeI[dD]\s*=|id=["']mealTimeID["']/g)) {
+      const i = m.index ?? 0;
+      mealTimeContexts.push(html.slice(Math.max(0, i - 200), i + 300));
+      if (mealTimeContexts.length >= 4) break;
+    }
+
+    const primitiveConfig: Record<string, unknown> = {};
+    if (d?.config && typeof d.config === 'object') {
+      for (const [k, v] of Object.entries(d.config)) {
+        if (v === null || typeof v !== 'object') primitiveConfig[k] = v;
+      }
+    }
+
+    const tagNodes = findObjectsWithName(d, REQUIRED_SUB_TAGS).slice(0, 10);
 
     return NextResponse.json({
-      apiPaths,
-      // 跟菜單相關的 ajax / fetch 呼叫
-      menuAjax: contexts(/(url\s*:|\$\.(get|post|ajax)\(|fetch\()[^\n]{0,200}menu/gi, 300, 900, 6),
-      // tmpDisabled（售完反灰）是怎麼判斷的
-      disabledLogic: contexts(/tmpDisabled\s*=/g, 600, 400, 4),
-      // 品項區塊是怎麼組出來的
-      mealItemTemplate: contexts(/class="mealItem row/g, 2500, 1500, 1),
+      pageStatus: r.pageStatus,
+      menuStatus: r.menuStatus,
+      csrfFound: r.csrfFound,
+      mealTimeIdUsed: r.mealTimeIdUsed,
+      mealTimeCandidates: r.mealTimeCandidates,
+      orderTypeUsed: r.orderTypeUsed,
+      isJson: d !== null,
+      rawStart: d === null ? r.rawStart : undefined,
+      topLevelKeys: d && typeof d === 'object' ? Object.keys(d) : [],
+      config: primitiveConfig,
+      itemCount: items.length,
+      itemNames: items.slice(0, 120).map((v) =>
+        `${v.item_name}${v.disabled ? ' [disabled]' : ''}${v.stock_disabled ? ' [stock_disabled]' : ''}${v.deleted == '1' ? ' [deleted]' : ''}${v.pos_only == '1' ? ' [pos_only]' : ''}`
+      ),
+      firstItem: items[0] ?? null,
+      tagNodes: tagNodes.map((n) => ({ path: n.path, obj: n.obj })),
+      parsedPreview: d ? parseMenuData(d) : null,
+      mealTimeContexts,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
