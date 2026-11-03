@@ -29,36 +29,30 @@ export async function GET() {
       cache: 'no-store',
     });
     const html = await res.text();
-    // 找出所有 mealItem 區塊，看品項名稱實際長什麼樣子
-    const mealPositions: number[] = [];
-    let idx = html.indexOf('class="mealItem');
-    while (idx !== -1 && mealPositions.length < 500) {
-      mealPositions.push(idx);
-      idx = html.indexOf('class="mealItem', idx + 1);
-    }
-    const stripTags = (t: string) => t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    const toEntity = (t: string) => Array.from(t).map((c) => `&#${c.codePointAt(0)};`).join('');
-    const toUnicode = (t: string) =>
-      Array.from(t).map((c) => '\\u' + c.codePointAt(0)!.toString(16).padStart(4, '0')).join('');
-    const probe = (word: string) => ({
-      raw: html.includes(word),
-      htmlEntity: html.includes(toEntity(word)),
-      unicodeEscape: html.toLowerCase().includes(toUnicode(word).toLowerCase()),
-    });
+    // 品項是用 JavaScript 載入的：找出載入菜單的 API 與判斷「售完」的程式片段
+    const contexts = (pattern: RegExp, before: number, after: number, max: number) => {
+      const out: string[] = [];
+      for (const m of html.matchAll(pattern)) {
+        const i = m.index ?? 0;
+        out.push(html.slice(Math.max(0, i - before), i + after));
+        if (out.length >= max) break;
+      }
+      return out;
+    };
+
+    // 所有出現過的 API 路徑（含相對路徑）
+    const apiPaths = Array.from(
+      new Set(html.match(/["'`](?:https?:\/\/[^"'`\s]*)?\/api\/[^"'`\s]+["'`]/g) ?? [])
+    );
 
     return NextResponse.json({
-      status: res.status,
-      htmlLength: html.length,
-      mealItemCount: mealPositions.length,
-      words: {
-        鍋燒: probe('鍋燒'),
-        厚奶酥: probe('厚奶酥'),
-        可樂: probe('可樂'),
-        薯條: probe('薯條'),
-      },
-      firstMealItemsText: mealPositions.slice(0, 8).map((p) => stripTags(html.slice(p, p + 800)).slice(0, 150)),
-      firstMealItemRaw: mealPositions.length ? html.slice(mealPositions[0] - 50, mealPositions[0] + 1200) : '',
-      bodyTextSample: stripTags(html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')).slice(0, 1500),
+      apiPaths,
+      // 跟菜單相關的 ajax / fetch 呼叫
+      menuAjax: contexts(/(url\s*:|\$\.(get|post|ajax)\(|fetch\()[^\n]{0,200}menu/gi, 300, 900, 6),
+      // tmpDisabled（售完反灰）是怎麼判斷的
+      disabledLogic: contexts(/tmpDisabled\s*=/g, 600, 400, 4),
+      // 品項區塊是怎麼組出來的
+      mealItemTemplate: contexts(/class="mealItem row/g, 2500, 1500, 1),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
