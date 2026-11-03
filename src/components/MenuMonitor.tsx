@@ -1,43 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import type { ItemStatus, MenuCheckResult } from '@/lib/menuConfig';
-
-// ===== 自動偵測時段（台灣時間，每小時整點偵測一次）=====
-// 平日（一～五）17:00 開始、假日（六、日）14:00 開始，都偵測到隔天 03:00
-const WEEKDAY_START_HOUR = 17;
-const WEEKEND_START_HOUR = 14;
-const END_HOUR = 3; // 隔天 03:00（含）
-
-// 取得台灣時間的星期與小時（不受使用者電腦時區影響）
-function getTaipeiTime(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Taipei',
-    weekday: 'short',
-    hour: 'numeric',
-    hourCycle: 'h23',
-  }).formatToParts(date);
-  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
-  return { isWeekend: weekday === 'Sat' || weekday === 'Sun', hour };
-}
-
-// 這個時間點是否在偵測時段內
-// 00:00～03:00 屬於前一天晚上的營業時段，每天都會偵測
-function isInMonitorWindow(date: Date) {
-  const { isWeekend, hour } = getTaipeiTime(date);
-  if (hour <= END_HOUR) return true;
-  return hour >= (isWeekend ? WEEKEND_START_HOUR : WEEKDAY_START_HOUR);
-}
-
-// 距離下一個整點還有幾毫秒
-function msUntilNextHour() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setMinutes(0, 0, 0);
-  next.setHours(next.getHours() + 1);
-  return next.getTime() - now.getTime() + 2000; // 多等 2 秒，確保已過整點
-}
+import { isInMonitorWindow } from '@/lib/menuConfig';
 
 const STATUS_LABEL: Record<ItemStatus, string> = {
   ok: '🟢 正常販售',
@@ -45,45 +11,70 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   missing: '🚫 完全未上架',
 };
 
+interface HistoryRow {
+  id: string;
+  checked_at: string;
+  item_issues: number;
+  tag_issues: number;
+}
+
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
 export default function MenuMonitor() {
   const [data, setData] = useState<MenuCheckResult | null>(null);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-  const [inWindow, setInWindow] = useState(() => isInMonitorWindow(new Date()));
+  const inWindow = isInMonitorWindow(new Date());
 
+  // 讀取排程存下來的最新結果與最近紀錄
+  const loadSaved = useCallback(async () => {
+    const { data: rows, error: dbError } = await supabase
+      .from('menu_checks')
+      .select('id, checked_at, item_issues, tag_issues, result')
+      .order('checked_at', { ascending: false })
+      .limit(24);
+    if (dbError) {
+      setError(`讀取紀錄失敗：${dbError.message}`);
+      return;
+    }
+    if (rows && rows.length > 0) {
+      setData(rows[0].result as MenuCheckResult);
+      setHistory(rows.map(({ id, checked_at, item_issues, tag_issues }) => ({ id, checked_at, item_issues, tag_issues })));
+    }
+  }, []);
+
+  // 手動立即掃描（結果也會存進資料庫）
   const runCheck = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/menu-check', { cache: 'no-store' });
+      const res = await fetch('/api/menu-check', { method: 'POST', cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setData(json);
       setError('');
+      await loadSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadSaved]);
 
   useEffect(() => {
-    // 打開頁面時：在時段內就先掃一次
-    if (isInMonitorWindow(new Date())) runCheck();
-
-    // 之後每到整點，在時段內才掃描
-    let timer: ReturnType<typeof setTimeout>;
-    const scheduleNext = () => {
-      timer = setTimeout(() => {
-        const active = isInMonitorWindow(new Date());
-        setInWindow(active);
-        if (active) runCheck();
-        scheduleNext();
-      }, msUntilNextHour());
-    };
-    scheduleNext();
-    return () => clearTimeout(timer);
-  }, [runCheck]);
+    loadSaved();
+    // 頁面開著時，每 5 分鐘重新讀一次資料庫，看排程有沒有新結果
+    const timer = setInterval(loadSaved, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [loadSaved]);
 
   const errorCount = (items: { status: ItemStatus }[]) =>
     items.filter((i) => i.status !== 'ok').length;
@@ -101,15 +92,8 @@ export default function MenuMonitor() {
         <div>
           <h2 className="text-lg font-black text-slate-900">🐔 雲端點餐品項監測</h2>
           <p className="text-xs text-slate-400">
-            平日 17:00、假日 14:00 起至隔天 03:00，每小時整點自動掃描（此頁面需保持開啟）
-            {data &&
-              ` ・ 上次掃描：${new Date(data.checkedAt).toLocaleString('zh-TW', {
-                timeZone: 'Asia/Taipei',
-                month: 'numeric',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}`}
+            雲端排程：平日 17:00、假日 14:00 起至隔天 03:00，每小時整點自動掃描（不需開著網頁）
+            {data && ` ・ 上次掃描：${fmtTime(data.checkedAt)}`}
           </p>
         </div>
         <button
@@ -123,13 +107,19 @@ export default function MenuMonitor() {
 
       {!inWindow && (
         <div className="bg-slate-100 border border-slate-200 text-slate-600 p-4 rounded-2xl font-bold text-sm">
-          🌙 目前不在偵測時段，自動掃描暫停中；需要的話可以按「立即重新掃描」手動檢查。
+          🌙 目前不在偵測時段，自動掃描暫停中，下方顯示的是最後一次的結果；需要的話可以按「立即重新掃描」手動檢查。
         </div>
       )}
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl font-bold text-sm">
           ❌ 偵測系統連線失敗：{error}
+        </div>
+      )}
+
+      {!data && !error && (
+        <div className="bg-white border border-slate-200 text-slate-500 p-4 rounded-2xl text-sm">
+          目前還沒有掃描紀錄，可以先按「立即重新掃描」試一次。
         </div>
       )}
 
@@ -220,6 +210,31 @@ export default function MenuMonitor() {
               </>
             )}
           </div>
+
+          {/* 最近掃描紀錄 */}
+          {history.length > 0 && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <h3 className="font-black text-slate-800 mb-3">🕒 最近掃描紀錄</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {history.map((h) => {
+                  const bad = h.item_issues + h.tag_issues > 0;
+                  return (
+                    <div
+                      key={h.id}
+                      className={`text-xs px-3 py-2 rounded-xl border flex justify-between ${
+                        bad ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <span>{fmtTime(h.checked_at)}</span>
+                      <span className="font-bold">
+                        {bad ? `品項 ${h.item_issues}・標籤 ${h.tag_issues}` : '全部正常'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

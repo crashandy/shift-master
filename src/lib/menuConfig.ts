@@ -82,3 +82,35 @@ export function parseMenuHtml(html: string): Omit<MenuCheckResult, 'checkedAt'> 
 
   return { categories, tagIssues };
 }
+
+// ===== 自動偵測時段（台灣時間）=====
+// 平日（一～五）17:00 起、假日（六、日）14:00 起，都偵測到隔天 03:00
+export const WEEKDAY_START_HOUR = 17;
+export const WEEKEND_START_HOUR = 14;
+export const END_HOUR = 3; // 隔天 03:00（含）
+
+function getTaipeiTime(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    weekday: 'short',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  return { isWeekend: weekday === 'Sat' || weekday === 'Sun', hour };
+}
+
+// 00:00～03:00 屬於前一天晚上的營業時段，每天都會偵測
+export function isInMonitorWindow(date: Date) {
+  const { isWeekend, hour } = getTaipeiTime(date);
+  if (hour <= END_HOUR) return true;
+  return hour >= (isWeekend ? WEEKEND_START_HOUR : WEEKDAY_START_HOUR);
+}
+
+export function countItemIssues(result: Pick<MenuCheckResult, 'categories'>) {
+  return result.categories.reduce(
+    (sum, c) => sum + c.items.filter((i) => i.status !== 'ok').length,
+    0
+  );
+}
