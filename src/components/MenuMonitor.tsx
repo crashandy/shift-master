@@ -3,7 +3,41 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ItemStatus, MenuCheckResult } from '@/lib/menuConfig';
 
-const REFRESH_MS = 5 * 60 * 1000; // 每 5 分鐘自動掃描一次
+// ===== 自動偵測時段（台灣時間，每小時整點偵測一次）=====
+// 平日（一～五）17:00 開始、假日（六、日）14:00 開始，都偵測到隔天 03:00
+const WEEKDAY_START_HOUR = 17;
+const WEEKEND_START_HOUR = 14;
+const END_HOUR = 3; // 隔天 03:00（含）
+
+// 取得台灣時間的星期與小時（不受使用者電腦時區影響）
+function getTaipeiTime(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    weekday: 'short',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  return { isWeekend: weekday === 'Sat' || weekday === 'Sun', hour };
+}
+
+// 這個時間點是否在偵測時段內
+// 00:00～03:00 屬於前一天晚上的營業時段，每天都會偵測
+function isInMonitorWindow(date: Date) {
+  const { isWeekend, hour } = getTaipeiTime(date);
+  if (hour <= END_HOUR) return true;
+  return hour >= (isWeekend ? WEEKEND_START_HOUR : WEEKDAY_START_HOUR);
+}
+
+// 距離下一個整點還有幾毫秒
+function msUntilNextHour() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setMinutes(0, 0, 0);
+  next.setHours(next.getHours() + 1);
+  return next.getTime() - now.getTime() + 2000; // 多等 2 秒，確保已過整點
+}
 
 const STATUS_LABEL: Record<ItemStatus, string> = {
   ok: '🟢 正常販售',
@@ -16,6 +50,7 @@ export default function MenuMonitor() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [inWindow, setInWindow] = useState(() => isInMonitorWindow(new Date()));
 
   const runCheck = useCallback(async () => {
     setLoading(true);
@@ -33,9 +68,21 @@ export default function MenuMonitor() {
   }, []);
 
   useEffect(() => {
-    runCheck();
-    const timer = setInterval(runCheck, REFRESH_MS);
-    return () => clearInterval(timer);
+    // 打開頁面時：在時段內就先掃一次
+    if (isInMonitorWindow(new Date())) runCheck();
+
+    // 之後每到整點，在時段內才掃描
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      timer = setTimeout(() => {
+        const active = isInMonitorWindow(new Date());
+        setInWindow(active);
+        if (active) runCheck();
+        scheduleNext();
+      }, msUntilNextHour());
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
   }, [runCheck]);
 
   const errorCount = (items: { status: ItemStatus }[]) =>
@@ -54,8 +101,15 @@ export default function MenuMonitor() {
         <div>
           <h2 className="text-lg font-black text-slate-900">🐔 雲端點餐品項監測</h2>
           <p className="text-xs text-slate-400">
-            每 5 分鐘自動掃描肚肚點餐頁（此頁面需保持開啟）
-            {data && ` ・ 上次掃描：${new Date(data.checkedAt).toLocaleTimeString('zh-TW')}`}
+            平日 17:00、假日 14:00 起至隔天 03:00，每小時整點自動掃描（此頁面需保持開啟）
+            {data &&
+              ` ・ 上次掃描：${new Date(data.checkedAt).toLocaleString('zh-TW', {
+                timeZone: 'Asia/Taipei',
+                month: 'numeric',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`}
           </p>
         </div>
         <button
@@ -66,6 +120,12 @@ export default function MenuMonitor() {
           {loading ? '🔄 掃描中...' : '🔄 立即重新掃描'}
         </button>
       </div>
+
+      {!inWindow && (
+        <div className="bg-slate-100 border border-slate-200 text-slate-600 p-4 rounded-2xl font-bold text-sm">
+          🌙 目前不在偵測時段，自動掃描暫停中；需要的話可以按「立即重新掃描」手動檢查。
+        </div>
+      )}
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-2xl font-bold text-sm">
