@@ -29,23 +29,36 @@ export async function GET() {
       cache: 'no-store',
     });
     const html = await res.text();
-    const scripts = Array.from(html.matchAll(/<script[^>]*src="([^"]+)"/g)).map((m) => m[1]);
-    const apiHints = Array.from(
-      new Set(html.match(/https?:\/\/[^"'\s<>]*(api|graphql)[^"'\s<>]*/gi) ?? [])
-    ).slice(0, 20);
+    // 找出所有 mealItem 區塊，看品項名稱實際長什麼樣子
+    const mealPositions: number[] = [];
+    let idx = html.indexOf('class="mealItem');
+    while (idx !== -1 && mealPositions.length < 500) {
+      mealPositions.push(idx);
+      idx = html.indexOf('class="mealItem', idx + 1);
+    }
+    const stripTags = (t: string) => t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const toEntity = (t: string) => Array.from(t).map((c) => `&#${c.codePointAt(0)};`).join('');
+    const toUnicode = (t: string) =>
+      Array.from(t).map((c) => '\\u' + c.codePointAt(0)!.toString(16).padStart(4, '0')).join('');
+    const probe = (word: string) => ({
+      raw: html.includes(word),
+      htmlEntity: html.includes(toEntity(word)),
+      unicodeEscape: html.toLowerCase().includes(toUnicode(word).toLowerCase()),
+    });
 
     return NextResponse.json({
       status: res.status,
-      finalUrl: res.url,
-      contentType: res.headers.get('content-type'),
-      server: res.headers.get('server'),
       htmlLength: html.length,
-      has原味鍋燒: html.includes('原味鍋燒'),
-      hasMealItem: html.includes('mealItem'),
-      looksLikeCloudflare: /cloudflare|cf-chl|just a moment/i.test(html),
-      scripts: scripts.slice(0, 15),
-      apiHints,
-      htmlStart: html.slice(0, 1500),
+      mealItemCount: mealPositions.length,
+      words: {
+        鍋燒: probe('鍋燒'),
+        厚奶酥: probe('厚奶酥'),
+        可樂: probe('可樂'),
+        薯條: probe('薯條'),
+      },
+      firstMealItemsText: mealPositions.slice(0, 8).map((p) => stripTags(html.slice(p, p + 800)).slice(0, 150)),
+      firstMealItemRaw: mealPositions.length ? html.slice(mealPositions[0] - 50, mealPositions[0] + 1200) : '',
+      bodyTextSample: stripTags(html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')).slice(0, 1500),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
