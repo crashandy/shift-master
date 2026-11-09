@@ -377,6 +377,9 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
+          <Link href="/ledger" className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-bold border border-emerald-200">
+            💰 月記帳 🔒
+          </Link>
           {view !== 'monitor' && (
           <select
             value={currentStore}
