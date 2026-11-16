@@ -48,7 +48,6 @@ export default function AdminPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [unavailabilities, setUnavailabilities] = useState<Unavailability[]>([]);
-  const [deputyRequests, setDeputyRequests] = useState<Unavailability[]>([]);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
 
   // 拖曳排序狀態
@@ -115,14 +114,6 @@ export default function AdminPage() {
       .gte('date', startDate)
       .lte('date', endDate);
     if (unavailData) setUnavailabilities(unavailData);
-
-    // 3-1. 抓取員工登記的「想當代理人」
-    const { data: deputyReqData } = await supabase
-      .from('deputy_requests')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate);
-    if (deputyReqData) setDeputyRequests(deputyReqData);
 
     // 4. 抓取劃休開關
     const { data: settingsData } = await supabase
@@ -675,9 +666,6 @@ export default function AdminPage() {
                     const isUnavail = unavailabilities.some(
                       (u) => u.employee_id === emp.id && u.date === dateStr
                     );
-                    const wantsDeputy = deputyRequests.some(
-                      (d) => d.employee_id === emp.id && d.date === dateStr
-                    );
                     const shift = shifts.find(
                       (s) => s.employee_id === emp.id && s.date === dateStr
                     );
@@ -688,16 +676,6 @@ export default function AdminPage() {
                         onClick={() => handleCellClick(emp.id, dateStr)}
                         className="border-b border-r border-slate-200 p-1 text-center cursor-pointer hover:bg-indigo-50/70 transition relative select-none h-15"
                       >
-                        {/* 員工登記想當代理人 */}
-                        {wantsDeputy && (
-                          <span
-                            className="absolute top-1 left-1 text-[9px] bg-orange-100 text-orange-600 font-bold px-1 rounded"
-                            title="員工登記想當代理人，按「+代」確認"
-                          >
-                            想代
-                          </span>
-                        )}
-
                         {/* 劃休標籤 */}
                         {isUnavail && (
                           <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 rounded">

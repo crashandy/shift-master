@@ -29,12 +29,6 @@ interface Unavailability {
   date: string;
 }
 
-interface DeputyRequest {
-  id?: string;
-  employee_id: string;
-  date: string;
-}
-
 // 員工點格子時要登記的項目
 type StaffTool = 'off' | 'deputy';
 
@@ -51,7 +45,6 @@ export default function EmployeePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [unavailabilities, setUnavailabilities] = useState<Unavailability[]>([]);
-  const [deputyRequests, setDeputyRequests] = useState<DeputyRequest[]>([]);
   const [staffTool, setStaffTool] = useState<StaffTool>('off');
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
 
@@ -114,14 +107,6 @@ export default function EmployeePage() {
       .lte('date', endDate);
     if (unavailData) setUnavailabilities(unavailData);
 
-    // 3-1. 抓取「想當代理人」登記
-    const { data: deputyReqData } = await supabase
-      .from('deputy_requests')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate);
-    if (deputyReqData) setDeputyRequests(deputyReqData);
-
     // 4. 抓取系統劃休開關
     const { data: settingsData } = await supabase
       .from('system_settings')
@@ -159,39 +144,63 @@ export default function EmployeePage() {
     const existingOff = unavailabilities.find(
       (u) => u.employee_id === empId && u.date === dateStr
     );
-    const existingDeputy = deputyRequests.find(
-      (d) => d.employee_id === empId && d.date === dateStr
-    );
+    const myShift = shifts.find((s) => s.employee_id === empId && s.date === dateStr);
+    const currentDeputy = shifts.find((s) => s.date === dateStr && s.is_deputy);
 
-    let error: { message: string } | null = null;
+    // 取消自己的代理人：這格只剩代理人（沒班別、沒宵夜）就整筆刪掉
+    const cancelMyDeputy = async () => {
+      if (!myShift?.id) return null;
+      const isEmpty = myShift.shift_type === 'none' && !myShift.is_night;
+      const { error } = isEmpty
+        ? await supabase.from('shifts').delete().eq('id', myShift.id)
+        : await supabase.from('shifts').update({ is_deputy: false }).eq('id', myShift.id);
+      return error;
+    };
+
+    let error: { message: string; code?: string } | null = null;
 
     if (staffTool === 'off') {
       if (existingOff?.id) {
         // 取消劃休
         ({ error } = await supabase.from('unavailability').delete().eq('id', existingOff.id));
       } else {
-        // 新增劃休（同一天就不能想當代理人）
-        if (existingDeputy?.id) {
-          await supabase.from('deputy_requests').delete().eq('id', existingDeputy.id);
+        // 新增劃休（同一天是代理人的話，代理人一併取消）
+        if (myShift?.is_deputy) error = await cancelMyDeputy();
+        if (!error) {
+          ({ error } = await supabase.from('unavailability').insert({
+            employee_id: empId,
+            date: dateStr,
+          }));
         }
-        ({ error } = await supabase.from('unavailability').insert({
-          employee_id: empId,
-          date: dateStr,
-        }));
       }
+    } else if (myShift?.is_deputy) {
+      // 取消自己的代理人
+      error = await cancelMyDeputy();
+    } else if (currentDeputy) {
+      // 先登記先拿到：當天已經有人了
+      const name = employees.find((e) => e.id === currentDeputy.employee_id)?.name ?? '其他同仁';
+      alert(`這天的代理人已經是「${name}」了，請選別天！`);
+      return;
     } else {
-      if (existingDeputy?.id) {
-        // 取消想當代理人
-        ({ error } = await supabase.from('deputy_requests').delete().eq('id', existingDeputy.id));
-      } else {
-        // 登記想當代理人（同一天就不能劃休）
-        if (existingOff?.id) {
-          await supabase.from('unavailability').delete().eq('id', existingOff.id);
-        }
-        ({ error } = await supabase.from('deputy_requests').insert({
-          employee_id: empId,
-          date: dateStr,
-        }));
+      // 登記代理人（同一天有劃休的話先取消）
+      if (existingOff?.id) {
+        await supabase.from('unavailability').delete().eq('id', existingOff.id);
+      }
+      ({ error } = myShift?.id
+        ? await supabase.from('shifts').update({ is_deputy: true }).eq('id', myShift.id)
+        : await supabase.from('shifts').insert({
+            employee_id: empId,
+            date: dateStr,
+            shift_type: 'none',
+            is_night: false,
+            is_deputy: true,
+            store: currentStore,
+          }));
+      // 同時有兩個人搶同一天：資料庫只會讓一個人成功
+      if (error?.code === '23505') {
+        alert('這天剛剛已經被別人登記為代理人了，請選別天！');
+        fetchData();
+        return;
       }
     }
 
@@ -297,7 +306,7 @@ export default function EmployeePage() {
             <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-bold">
               {[
                 { key: 'off', label: '🔴 劃休', activeClass: 'bg-rose-500 text-white' },
-                { key: 'deputy', label: '🟠 想當代理人', activeClass: 'bg-orange-500 text-white' },
+                { key: 'deputy', label: '🟠 當代理人', activeClass: 'bg-orange-500 text-white' },
               ].map((t) => (
                 <button
                   key={t.key}
@@ -334,16 +343,13 @@ export default function EmployeePage() {
             <span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /> 當日代理人
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="text-[9px] bg-orange-100 text-orange-600 font-bold px-1 rounded">想代</span> 想當代理人
-          </span>
-          <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-rose-500 inline-block" /> 店長排休
           </span>
         </div>
 
         {selectedEmployeeId && isSubmissionOpen && (
           <div className="text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-lg">
-            👉 點選您名字對應的日期格子即可「標記 / 取消」{staffTool === 'off' ? '劃休' : '想當代理人'}
+            👉 點選您名字對應的日期格子即可「標記 / 取消」{staffTool === 'off' ? '劃休' : '代理人（每天一位，先登記先拿到）'}
           </div>
         )}
       </div>
@@ -394,6 +400,11 @@ export default function EmployeePage() {
                 const dayOfWeek = dateObj.getDay();
                 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const deputyShift = shifts.find((s) => s.date === dateStr && s.is_deputy);
+                const deputyName = deputyShift
+                  ? employees.find((e) => e.id === deputyShift.employee_id)?.name
+                  : undefined;
 
                 return (
                   <th
@@ -408,6 +419,14 @@ export default function EmployeePage() {
                     <div className={`text-xs font-semibold ${isWeekend ? 'text-indigo-400' : 'text-slate-400'}`}>
                       週{dayNames[dayOfWeek]}
                     </div>
+                    {deputyName && (
+                      <div
+                        className="mt-1 mx-auto bg-orange-100 text-orange-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none max-w-[70px] truncate"
+                        title={`代理人：${deputyName}`}
+                      >
+                        代 {deputyName}
+                      </div>
+                    )}
                   </th>
                 );
               })}
@@ -434,9 +453,6 @@ export default function EmployeePage() {
                   const isUnavail = unavailabilities.some(
                     (u) => u.employee_id === emp.id && u.date === dateStr
                   );
-                  const wantsDeputy = deputyRequests.some(
-                    (d) => d.employee_id === emp.id && d.date === dateStr
-                  );
                   const shift = shifts.find(
                     (s) => s.employee_id === emp.id && s.date === dateStr
                   );
@@ -457,13 +473,6 @@ export default function EmployeePage() {
                           : ''
                       }`}
                     >
-                      {/* 想當代理人標記 */}
-                      {wantsDeputy && (
-                        <span className="absolute top-1 left-1 text-[9px] bg-orange-100 text-orange-600 font-bold px-1 py-0.2 rounded shadow-2xs">
-                          想代
-                        </span>
-                      )}
-
                       {/* 劃休標記 */}
                       {isUnavail && (
                         <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 py-0.2 rounded shadow-2xs">
