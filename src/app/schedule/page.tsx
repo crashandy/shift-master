@@ -29,6 +29,15 @@ interface Unavailability {
   date: string;
 }
 
+interface DeputyRequest {
+  id?: string;
+  employee_id: string;
+  date: string;
+}
+
+// 員工點格子時要登記的項目
+type StaffTool = 'off' | 'deputy';
+
 export default function EmployeePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [storePassword, setStorePassword] = useState('');
@@ -42,6 +51,8 @@ export default function EmployeePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [unavailabilities, setUnavailabilities] = useState<Unavailability[]>([]);
+  const [deputyRequests, setDeputyRequests] = useState<DeputyRequest[]>([]);
+  const [staffTool, setStaffTool] = useState<StaffTool>('off');
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
 
   // 劃休選擇狀態
@@ -103,6 +114,14 @@ export default function EmployeePage() {
       .lte('date', endDate);
     if (unavailData) setUnavailabilities(unavailData);
 
+    // 3-1. 抓取「想當代理人」登記
+    const { data: deputyReqData } = await supabase
+      .from('deputy_requests')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate);
+    if (deputyReqData) setDeputyRequests(deputyReqData);
+
     // 4. 抓取系統劃休開關
     const { data: settingsData } = await supabase
       .from('system_settings')
@@ -137,21 +156,46 @@ export default function EmployeePage() {
       return;
     }
 
-    const existing = unavailabilities.find(
+    const existingOff = unavailabilities.find(
       (u) => u.employee_id === empId && u.date === dateStr
     );
+    const existingDeputy = deputyRequests.find(
+      (d) => d.employee_id === empId && d.date === dateStr
+    );
 
-    if (existing?.id) {
-      // 取消劃休
-      await supabase.from('unavailability').delete().eq('id', existing.id);
+    let error: { message: string } | null = null;
+
+    if (staffTool === 'off') {
+      if (existingOff?.id) {
+        // 取消劃休
+        ({ error } = await supabase.from('unavailability').delete().eq('id', existingOff.id));
+      } else {
+        // 新增劃休（同一天就不能想當代理人）
+        if (existingDeputy?.id) {
+          await supabase.from('deputy_requests').delete().eq('id', existingDeputy.id);
+        }
+        ({ error } = await supabase.from('unavailability').insert({
+          employee_id: empId,
+          date: dateStr,
+        }));
+      }
     } else {
-      // 新增劃休
-      await supabase.from('unavailability').insert({
-        employee_id: empId,
-        date: dateStr,
-      });
+      if (existingDeputy?.id) {
+        // 取消想當代理人
+        ({ error } = await supabase.from('deputy_requests').delete().eq('id', existingDeputy.id));
+      } else {
+        // 登記想當代理人（同一天就不能劃休）
+        if (existingOff?.id) {
+          await supabase.from('unavailability').delete().eq('id', existingOff.id);
+        }
+        ({ error } = await supabase.from('deputy_requests').insert({
+          employee_id: empId,
+          date: dateStr,
+        }));
+      }
     }
 
+    if (error) alert(`更新失敗：${error.message}`);
     fetchData();
   };
 
@@ -240,13 +284,32 @@ export default function EmployeePage() {
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
               className="bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold outline-none focus:border-indigo-500 cursor-pointer"
             >
-              <option value="">-- 我要劃休（先選名字）--</option>
+              <option value="">-- 我要劃休 / 當代理（先選名字）--</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.name}
                 </option>
               ))}
             </select>
+          )}
+
+          {isSubmissionOpen && selectedEmployeeId && (
+            <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-bold">
+              {[
+                { key: 'off', label: '🔴 劃休', activeClass: 'bg-rose-500 text-white' },
+                { key: 'deputy', label: '🟠 想當代理人', activeClass: 'bg-orange-500 text-white' },
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setStaffTool(t.key as StaffTool)}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    staffTool === t.key ? t.activeClass + ' shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -271,13 +334,16 @@ export default function EmployeePage() {
             <span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /> 當日代理人
           </span>
           <span className="flex items-center gap-1.5">
+            <span className="text-[9px] bg-orange-100 text-orange-600 font-bold px-1 rounded">想代</span> 想當代理人
+          </span>
+          <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-rose-500 inline-block" /> 店長排休
           </span>
         </div>
 
         {selectedEmployeeId && isSubmissionOpen && (
           <div className="text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-lg">
-            👉 點選您名字對應的日期格子即可「標記 / 取消」劃休
+            👉 點選您名字對應的日期格子即可「標記 / 取消」{staffTool === 'off' ? '劃休' : '想當代理人'}
           </div>
         )}
       </div>
@@ -368,6 +434,9 @@ export default function EmployeePage() {
                   const isUnavail = unavailabilities.some(
                     (u) => u.employee_id === emp.id && u.date === dateStr
                   );
+                  const wantsDeputy = deputyRequests.some(
+                    (d) => d.employee_id === emp.id && d.date === dateStr
+                  );
                   const shift = shifts.find(
                     (s) => s.employee_id === emp.id && s.date === dateStr
                   );
@@ -388,6 +457,13 @@ export default function EmployeePage() {
                           : ''
                       }`}
                     >
+                      {/* 想當代理人標記 */}
+                      {wantsDeputy && (
+                        <span className="absolute top-1 left-1 text-[9px] bg-orange-100 text-orange-600 font-bold px-1 py-0.2 rounded shadow-2xs">
+                          想代
+                        </span>
+                      )}
+
                       {/* 劃休標記 */}
                       {isUnavail && (
                         <span className="absolute top-1 right-1 text-[9px] bg-rose-100 text-rose-600 font-bold px-1 py-0.2 rounded shadow-2xs">
