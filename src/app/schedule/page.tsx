@@ -19,6 +19,7 @@ interface Shift {
   date: string;
   shift_type: ShiftType;
   is_night: boolean;
+  is_deputy?: boolean;
   store: string;
 }
 
@@ -267,6 +268,9 @@ export default function EmployeePage() {
             <span className="w-3 h-3 rounded-full bg-purple-600 inline-block" /> 宵夜班 (+宵)
           </span>
           <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /> 當日代理人
+          </span>
+          <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-rose-500 inline-block" /> 店長排休
           </span>
         </div>
@@ -417,6 +421,13 @@ export default function EmployeePage() {
                       {shift?.is_night && (
                         <div className="mt-1 inline-block bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none border border-purple-200">
                           宵夜✓
+                        </div>
+                      )}
+
+                      {/* 代理人標籤 */}
+                      {shift?.is_deputy && (
+                        <div className="mt-1 ml-0.5 inline-block bg-orange-100 text-orange-700 text-[10px] font-black px-1.5 py-0.5 rounded-md leading-none border border-orange-200">
+                          代理
                         </div>
                       )}
                     </td>
