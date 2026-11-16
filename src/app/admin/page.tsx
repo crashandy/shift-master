@@ -25,8 +25,12 @@ interface Shift {
   date: string;
   shift_type: ShiftType;
   is_night: boolean;
+  is_deputy?: boolean;
   store: string;
 }
+
+// 有上班的班別才能擔任代理人
+const isWorkingShift = (t?: ShiftType) => t === 'normal' || t === 'open' || t === 'half';
 
 interface Unavailability {
   employee_id: string;
@@ -247,6 +251,8 @@ export default function AdminPage() {
 
     const isNight = existingShift ? existingShift.is_night : false;
     const newShiftType = activeTool;
+    // 改成排休或清除時，代理人身分一併取消
+    const isDeputy = isWorkingShift(newShiftType) ? !!existingShift?.is_deputy : false;
 
     if (newShiftType === 'none' && !isNight) {
       if (existingShift?.id) {
@@ -259,6 +265,7 @@ export default function AdminPage() {
         date: dateStr,
         shift_type: newShiftType,
         is_night: isNight,
+        is_deputy: isDeputy,
         store: currentStore,
       });
     }
@@ -299,6 +306,45 @@ export default function AdminPage() {
     fetchData();
   };
 
+  // 設定 / 取消當日代理人（每天只會有一位）
+  const handleToggleDeputy = async (
+    e: React.MouseEvent,
+    employeeId: string,
+    dateStr: string
+  ) => {
+    e.stopPropagation();
+
+    const existingShift = shifts.find(
+      (s) => s.employee_id === employeeId && s.date === dateStr
+    );
+    if (!existingShift?.id || !isWorkingShift(existingShift.shift_type)) {
+      alert('請先幫這位同仁排上班別，才能設為代理人！');
+      return;
+    }
+
+    if (existingShift.is_deputy) {
+      const { error } = await supabase
+        .from('shifts')
+        .update({ is_deputy: false })
+        .eq('id', existingShift.id);
+      if (error) alert(`更新失敗：${error.message}`);
+    } else {
+      // 先取消當天原本的代理人，再設定新的
+      const { error: clearError } = await supabase
+        .from('shifts')
+        .update({ is_deputy: false })
+        .eq('store', currentStore)
+        .eq('date', dateStr)
+        .eq('is_deputy', true);
+      const { error } = clearError
+        ? { error: clearError }
+        : await supabase.from('shifts').update({ is_deputy: true }).eq('id', existingShift.id);
+      if (error) alert(`設定代理人失敗：${error.message}`);
+    }
+
+    fetchData();
+  };
+
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -309,18 +355,20 @@ export default function AdminPage() {
     let openCount = 0;
     let halfCount = 0;
     let nightCount = 0;
+    let deputyCount = 0;
 
     empShifts.forEach((s) => {
       if (s.shift_type === 'normal') normalCount++;
       if (s.shift_type === 'open') openCount++;
       if (s.shift_type === 'half') halfCount++;
       if (s.is_night) nightCount++;
+      if (s.is_deputy) deputyCount++;
     });
 
     const totalHours = (normalCount + openCount) * 6 + halfCount * 3.5;
     const totalPay = (normalCount + openCount) * 1260 + halfCount * 735;
 
-    return { normalCount, openCount, halfCount, nightCount, totalHours, totalPay };
+    return { normalCount, openCount, halfCount, nightCount, deputyCount, totalHours, totalPay };
   };
 
   if (!isAuthenticated) {
@@ -431,7 +479,7 @@ export default function AdminPage() {
       <div className="max-w-[1600px] mx-auto mb-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
           <span>🖌️ 排班畫筆（點選後直接點擊格子填入）：</span>
-          <span className="text-indigo-600 font-normal">💡 小技巧：按住左側「⋮⋮」圖示可上下拖曳調整員工排序</span>
+          <span className="text-indigo-600 font-normal">💡 按住「⋮⋮」可拖曳排序；格子內「+代」可設定當日代理人（每天一位）</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {[
@@ -511,6 +559,10 @@ export default function AdminPage() {
                   const openCount = dayShifts.filter((s) => s.shift_type === 'open').length;
                   const halfCount = dayShifts.filter((s) => s.shift_type === 'half').length;
                   const nightCount = dayShifts.filter((s) => s.is_night).length;
+                  const deputyShift = dayShifts.find((s) => s.is_deputy);
+                  const deputyName = deputyShift
+                    ? employees.find((e) => e.id === deputyShift.employee_id)?.name
+                    : undefined;
 
                   return (
                     <th
@@ -541,6 +593,14 @@ export default function AdminPage() {
                         {nightCount > 0 && (
                           <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none">
                             宵 {nightCount}
+                          </span>
+                        )}
+                        {deputyName && (
+                          <span
+                            className="bg-orange-100 text-orange-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none max-w-[64px] truncate"
+                            title={`代理人：${deputyName}`}
+                          >
+                            代 {deputyName}
                           </span>
                         )}
                       </div>
@@ -621,17 +681,34 @@ export default function AdminPage() {
                           <div className="bg-rose-500 text-white rounded-md py-1 font-bold text-xs shadow-2xs">排休</div>
                         )}
 
-                        {/* 宵夜班按鈕 */}
-                        <button
-                          onClick={(e) => handleToggleNight(e, emp.id, dateStr)}
-                          className={`mt-1 text-[10px] px-1 py-0.2 rounded font-bold transition ${
-                            shift?.is_night
-                              ? 'bg-purple-600 text-white shadow-2xs'
-                              : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
-                          }`}
-                        >
-                          {shift?.is_night ? '宵夜✓' : '+宵'}
-                        </button>
+                        <div className="mt-1 flex items-center justify-center gap-0.5">
+                          {/* 宵夜班按鈕 */}
+                          <button
+                            onClick={(e) => handleToggleNight(e, emp.id, dateStr)}
+                            className={`text-[10px] px-1 py-0.2 rounded font-bold transition ${
+                              shift?.is_night
+                                ? 'bg-purple-600 text-white shadow-2xs'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                            }`}
+                          >
+                            {shift?.is_night ? '宵✓' : '+宵'}
+                          </button>
+
+                          {/* 代理人按鈕（有上班才顯示） */}
+                          {isWorkingShift(shift?.shift_type) && (
+                            <button
+                              onClick={(e) => handleToggleDeputy(e, emp.id, dateStr)}
+                              title={shift?.is_deputy ? '取消代理人' : '設為當日代理人'}
+                              className={`text-[10px] px-1 py-0.2 rounded font-bold transition ${
+                                shift?.is_deputy
+                                  ? 'bg-orange-500 text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'
+                              }`}
+                            >
+                              {shift?.is_deputy ? '代✓' : '+代'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     );
                   })}
@@ -680,6 +757,7 @@ export default function AdminPage() {
                   <th className="py-2 font-bold">正常/開店 (6h)</th>
                   <th className="py-2 font-bold">半天 (3.5h)</th>
                   <th className="py-2 font-bold">宵夜 (0h)</th>
+                  <th className="py-2 font-bold">代理人</th>
                   <th className="py-2 font-bold">總工時</th>
                   <th className="py-2 font-bold text-emerald-600 text-right">預估總薪資</th>
                 </tr>
@@ -693,6 +771,7 @@ export default function AdminPage() {
                       <td className="py-2.5 text-slate-600">{salary.normalCount + salary.openCount} 次</td>
                       <td className="py-2.5 text-slate-600">{salary.halfCount} 次</td>
                       <td className="py-2.5 text-slate-600">{salary.nightCount} 次</td>
+                      <td className="py-2.5 text-slate-600">{salary.deputyCount} 次</td>
                       <td className="py-2.5 font-mono font-bold text-indigo-600">{salary.totalHours} 小時</td>
                       <td className="py-2.5 font-mono font-black text-emerald-600 text-right text-base">
                         ${salary.totalPay.toLocaleString()}
