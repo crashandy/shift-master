@@ -29,9 +29,6 @@ interface Shift {
   store: string;
 }
 
-// 有上班的班別才能擔任代理人
-const isWorkingShift = (t?: ShiftType) => t === 'normal' || t === 'open' || t === 'half';
-
 interface Unavailability {
   employee_id: string;
   date: string;
@@ -251,10 +248,10 @@ export default function AdminPage() {
 
     const isNight = existingShift ? existingShift.is_night : false;
     const newShiftType = activeTool;
-    // 改成排休或清除時，代理人身分一併取消
-    const isDeputy = isWorkingShift(newShiftType) ? !!existingShift?.is_deputy : false;
+    // 代理人與班別各自獨立，改班別不影響代理人
+    const isDeputy = !!existingShift?.is_deputy;
 
-    if (newShiftType === 'none' && !isNight) {
+    if (newShiftType === 'none' && !isNight && !isDeputy) {
       if (existingShift?.id) {
         await supabase.from('shifts').delete().eq('id', existingShift.id);
       }
@@ -287,8 +284,9 @@ export default function AdminPage() {
 
     const newIsNight = existingShift ? !existingShift.is_night : true;
     const shiftType = existingShift ? existingShift.shift_type : 'none';
+    const isDeputy = !!existingShift?.is_deputy;
 
-    if (shiftType === 'none' && !newIsNight) {
+    if (shiftType === 'none' && !newIsNight && !isDeputy) {
       if (existingShift?.id) {
         await supabase.from('shifts').delete().eq('id', existingShift.id);
       }
@@ -317,28 +315,46 @@ export default function AdminPage() {
     const existingShift = shifts.find(
       (s) => s.employee_id === employeeId && s.date === dateStr
     );
-    if (!existingShift?.id || !isWorkingShift(existingShift.shift_type)) {
-      alert('請先幫這位同仁排上班別，才能設為代理人！');
-      return;
-    }
 
-    if (existingShift.is_deputy) {
-      const { error } = await supabase
-        .from('shifts')
-        .update({ is_deputy: false })
-        .eq('id', existingShift.id);
+    if (existingShift?.id && existingShift.is_deputy) {
+      // 取消代理人；如果這格只剩代理人（沒班別、沒宵夜）就整筆刪掉
+      const isEmpty = existingShift.shift_type === 'none' && !existingShift.is_night;
+      const { error } = isEmpty
+        ? await supabase.from('shifts').delete().eq('id', existingShift.id)
+        : await supabase.from('shifts').update({ is_deputy: false }).eq('id', existingShift.id);
       if (error) alert(`更新失敗：${error.message}`);
     } else {
-      // 先取消當天原本的代理人，再設定新的
-      const { error: clearError } = await supabase
+      // 先取消當天原本的代理人（只剩代理人的空格直接刪除），再設定新的
+      const { error: delError } = await supabase
         .from('shifts')
-        .update({ is_deputy: false })
+        .delete()
         .eq('store', currentStore)
         .eq('date', dateStr)
-        .eq('is_deputy', true);
-      const { error } = clearError
-        ? { error: clearError }
-        : await supabase.from('shifts').update({ is_deputy: true }).eq('id', existingShift.id);
+        .eq('is_deputy', true)
+        .eq('shift_type', 'none')
+        .eq('is_night', false);
+      const { error: clearError } = delError
+        ? { error: delError }
+        : await supabase
+            .from('shifts')
+            .update({ is_deputy: false })
+            .eq('store', currentStore)
+            .eq('date', dateStr)
+            .eq('is_deputy', true);
+
+      let error = clearError;
+      if (!error) {
+        ({ error } = existingShift?.id
+          ? await supabase.from('shifts').update({ is_deputy: true }).eq('id', existingShift.id)
+          : await supabase.from('shifts').insert({
+              employee_id: employeeId,
+              date: dateStr,
+              shift_type: 'none',
+              is_night: false,
+              is_deputy: true,
+              store: currentStore,
+            }));
+      }
       if (error) alert(`設定代理人失敗：${error.message}`);
     }
 
@@ -694,9 +710,8 @@ export default function AdminPage() {
                             {shift?.is_night ? '宵✓' : '+宵'}
                           </button>
 
-                          {/* 代理人按鈕（有上班才顯示） */}
-                          {isWorkingShift(shift?.shift_type) && (
-                            <button
+                          {/* 代理人按鈕（每一格都可設定） */}
+                          <button
                               onClick={(e) => handleToggleDeputy(e, emp.id, dateStr)}
                               title={shift?.is_deputy ? '取消代理人' : '設為當日代理人'}
                               className={`text-[10px] px-1 py-0.2 rounded font-bold transition ${
@@ -707,7 +722,6 @@ export default function AdminPage() {
                             >
                               {shift?.is_deputy ? '代✓' : '+代'}
                             </button>
-                          )}
                         </div>
                       </td>
                     );
