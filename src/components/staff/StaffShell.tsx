@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { STORE_NAMES, StaffSession, useStaffSession } from '@/lib/staffSession';
+import Chick from '@/components/Chick';
 
 interface EmployeeOption {
   id: string;
@@ -48,30 +49,43 @@ export default function StaffShell({ title, icon, children }: Props) {
   }, [ready, session, router]);
 
   if (!ready || !session) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-400">載入中...</div>;
+    return <LoadingChick />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-16">
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div className="min-h-screen bg-cream text-stone-800 pb-safe">
+      <div className="sticky top-0 z-30 bg-cream/90 backdrop-blur-md border-b border-amber-100">
+        <div className="max-w-3xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <Link
               href="/"
-              className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold"
+              aria-label="回入口"
+              className="shrink-0 w-10 h-10 rounded-full bg-white border border-amber-100 shadow-sm flex items-center justify-center text-lg text-stone-600 active:scale-95 transition"
             >
-              ← 入口
+              ←
             </Link>
-            <h1 className="text-lg font-black text-slate-900 truncate">
-              {icon} {title}
+            <h1 className="text-lg font-black text-stone-900 truncate">
+              <span className="mr-1">{icon}</span>
+              {title}
             </h1>
           </div>
-          <span className="shrink-0 text-xs font-bold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg">
+          <span className="shrink-0 flex items-center gap-1 text-xs font-bold bg-brand-100 text-brand-800 pl-1 pr-2.5 py-0.5 rounded-full">
+            <Chick size={24} mood="happy" />
             {STORE_NAMES[session.store]}
           </span>
         </div>
       </div>
-      <div className="max-w-3xl mx-auto px-4 pt-4 space-y-4">{children({ session, update, employees })}</div>
+      <div className="max-w-3xl mx-auto px-3 pt-4 space-y-4">{children({ session, update, employees })}</div>
+    </div>
+  );
+}
+
+// 載入中畫面
+export function LoadingChick({ text = '載入中...' }: { text?: string }) {
+  return (
+    <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-2 text-stone-400 font-bold">
+      <Chick size={72} mood="sleepy" bob />
+      {text}
     </div>
   );
 }
@@ -87,15 +101,15 @@ export function EmployeeSelect({
   employees: EmployeeOption[];
 }) {
   return (
-    <label className="block bg-white rounded-2xl border border-slate-200 p-4">
-      <span className="block text-xs font-bold text-slate-400 mb-1.5">填寫人</span>
+    <label className="block bg-white rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 p-4">
+      <span className="block text-xs font-bold text-stone-400 mb-1.5">👤 填寫人</span>
       <select
         value={session.employeeId ?? ''}
         onChange={(e) => {
           const emp = employees.find((x) => x.id === e.target.value);
           update({ ...session, employeeId: emp?.id, employeeName: emp?.name });
         }}
-        className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-base outline-none focus:border-indigo-500"
+        className="w-full p-3.5 rounded-2xl bg-brand-50 border border-brand-200 font-bold text-base outline-none focus:border-brand-500"
       >
         <option value="">-- 請選擇你的名字 --</option>
         {employees.map((e) => (

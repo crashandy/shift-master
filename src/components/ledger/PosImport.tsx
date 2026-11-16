@@ -146,20 +146,20 @@ export default function PosImport({
   const categoryOptions = [...new Set([...DAILY_CATEGORIES, ...lines.filter((l) => !isSkip(l.choice)).map((l) => l.choice)])];
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-stone-900/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-5 border-b border-stone-200 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-black">匯入錢櫃 CSV → {storeName}</h2>
-            <p className="text-xs text-slate-400">只取「取出」；轉存和退款不算支出。資料會依營業日放進對應的月份。</p>
+            <p className="text-xs text-stone-400">只取「取出」；轉存和退款不算支出。資料會依營業日放進對應的月份。</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl px-2">✕</button>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-700 text-xl px-2">✕</button>
         </div>
 
         <div className="p-5 overflow-y-auto flex-1">
-          <label className="block border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-400 mb-4">
+          <label className="block border-2 border-dashed border-stone-200 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-400 mb-4">
             <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-            <span className="text-sm font-bold text-slate-600">{fileName || '點這裡選擇錢櫃管理匯出的 CSV'}</span>
+            <span className="text-sm font-bold text-stone-600">{fileName || '點這裡選擇錢櫃管理匯出的 CSV'}</span>
           </label>
 
           {lines.length > 0 && (
@@ -174,22 +174,22 @@ export default function PosImport({
                   <div className="text-xs font-bold text-emerald-700">要匯入的支出</div>
                   <div className="text-lg font-black font-mono text-emerald-700">{fmtMoney(totals.expense)}</div>
                 </div>
-                <div className="bg-slate-50 rounded-xl p-3">
-                  <div className="text-xs font-bold text-slate-500">轉存（不算）</div>
-                  <div className="text-lg font-black font-mono text-slate-500">{fmtMoney(totals.transfer)}</div>
+                <div className="bg-stone-50 rounded-xl p-3">
+                  <div className="text-xs font-bold text-stone-500">轉存（不算）</div>
+                  <div className="text-lg font-black font-mono text-stone-500">{fmtMoney(totals.transfer)}</div>
                 </div>
-                <div className="bg-slate-50 rounded-xl p-3">
-                  <div className="text-xs font-bold text-slate-500">客人退款（不算）</div>
-                  <div className="text-lg font-black font-mono text-slate-500">{fmtMoney(totals.refund)}</div>
+                <div className="bg-stone-50 rounded-xl p-3">
+                  <div className="text-xs font-bold text-stone-500">客人退款（不算）</div>
+                  <div className="text-lg font-black font-mono text-stone-500">{fmtMoney(totals.refund)}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {[...totals.byCat.entries()].sort((a, b) => b[1] - a[1]).map(([c, t]) => (
-                  <span key={c} className="text-xs bg-slate-100 px-2 py-1 rounded-lg font-bold">{c} <span className="font-mono">{fmtMoney(t)}</span></span>
+                  <span key={c} className="text-xs bg-stone-100 px-2 py-1 rounded-lg font-bold">{c} <span className="font-mono">{fmtMoney(t)}</span></span>
                 ))}
               </div>
 
-              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold mb-2 w-fit">
+              <div className="flex bg-stone-100 p-1 rounded-xl text-xs font-bold mb-2 w-fit">
                 {[
                   ['all', '全部'],
                   ['expense', '支出'],
@@ -199,7 +199,7 @@ export default function PosImport({
                   <button
                     key={k}
                     onClick={() => setFilter(k as typeof filter)}
-                    className={`px-3 py-1 rounded-lg ${filter === k ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'}`}
+                    className={`px-3 py-1 rounded-lg ${filter === k ? 'bg-white text-emerald-600 shadow-xs' : 'text-stone-500'}`}
                   >
                     {label}
                   </button>
@@ -208,7 +208,7 @@ export default function PosImport({
 
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-slate-400 border-b border-slate-200 text-left">
+                  <tr className="text-xs text-stone-400 border-b border-stone-200 text-left">
                     <th className="py-1.5 font-bold">營業日</th>
                     <th className="py-1.5 font-bold">原因</th>
                     <th className="py-1.5 font-bold text-right">金額</th>
@@ -220,16 +220,16 @@ export default function PosImport({
                   {shown.map(({ l, i }) => (
                     <tr
                       key={i}
-                      className={`border-b border-slate-100 ${isSkip(l.choice) ? 'text-slate-400' : ''} ${!l.matched && l.row.reason ? 'bg-amber-50/60' : ''}`}
+                      className={`border-b border-stone-100 ${isSkip(l.choice) ? 'text-stone-400' : ''} ${!l.matched && l.row.reason ? 'bg-amber-50/60' : ''}`}
                     >
                       <td className="py-1.5 font-mono">{l.row.businessDate.slice(5)}</td>
-                      <td className="py-1.5">{l.row.reason || <span className="text-slate-300">（無）</span>}</td>
+                      <td className="py-1.5">{l.row.reason || <span className="text-stone-300">（無）</span>}</td>
                       <td className="py-1.5 font-mono font-bold text-right">{fmtMoney(-l.row.amount)}</td>
                       <td className="py-1.5 pl-3">
                         <select
                           value={l.choice}
                           onChange={(e) => update(i, { choice: e.target.value })}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold outline-none"
+                          className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-sm font-bold outline-none"
                         >
                           {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                           <option value={SKIP_TRANSFER}>轉存（不算）</option>
@@ -254,8 +254,8 @@ export default function PosImport({
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-200 flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-sm">取消</button>
+        <div className="p-4 border-t border-stone-200 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 font-bold text-sm">取消</button>
           <button
             onClick={handleImport}
             disabled={busy || !lines.length}

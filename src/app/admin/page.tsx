@@ -7,6 +7,7 @@ import Link from 'next/link';
 import MenuMonitor from '@/components/MenuMonitor';
 import RecordsPanel from '@/components/admin/RecordsPanel';
 import SettingsPanel from '@/components/admin/SettingsPanel';
+import Chick from '@/components/Chick';
 
 type AdminView = 'schedule' | 'records' | 'settings' | 'monitor';
 
@@ -145,9 +146,12 @@ export default function AdminPage() {
   // 放置完成並儲存新順序
   const handleDrop = async (dropIndex: number) => {
     if (draggedEmployeeIndex === null || draggedEmployeeIndex === dropIndex) return;
+    await handleDropFrom(draggedEmployeeIndex, dropIndex);
+  };
 
+  const handleDropFrom = async (fromIndex: number, dropIndex: number) => {
     const updatedList = [...employees];
-    const [movedEmp] = updatedList.splice(draggedEmployeeIndex, 1);
+    const [movedEmp] = updatedList.splice(fromIndex, 1);
     updatedList.splice(dropIndex, 0, movedEmp);
 
     // 更新本地順序顯示
@@ -167,6 +171,14 @@ export default function AdminPage() {
     } catch (err) {
       console.error('更新員工順序失敗:', err);
     }
+  };
+
+  // 手機上用上下箭頭調整順序（觸控不能拖曳）
+  const moveEmployee = async (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= employees.length) return;
+    setDraggedEmployeeIndex(index);
+    await handleDropFrom(index, target);
   };
 
   // 截圖匯出圖檔
@@ -389,41 +401,70 @@ export default function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 w-full max-w-md">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl font-bold">
-            ⚡
+      <div className="min-h-screen bg-gradient-to-b from-stone-700 via-stone-600 to-cream flex items-center justify-center p-5">
+        <div className="w-full max-w-sm">
+          <div className="flex justify-center mb-[-28px] relative z-10">
+            <Chick size={110} hat bob />
           </div>
-          <h1 className="text-2xl font-black text-slate-800 mb-2 text-center">管理者後台登入</h1>
-          <p className="text-sm text-slate-500 text-center mb-6">請輸入管理員密碼以進入排班系統</p>
-          <input
-            type="password"
-            placeholder="請輸入管理者密碼"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3.5 rounded-xl bg-slate-50 text-slate-800 mb-4 outline-none border border-slate-200 focus:border-indigo-500 focus:bg-white transition"
-          />
-          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl shadow-md transition">
-            登入系統
-          </button>
-        </form>
+          <form
+            onSubmit={handleLogin}
+            className="bg-white pt-10 pb-7 px-6 rounded-[2rem] shadow-xl shadow-stone-900/20 text-center"
+          >
+            <h1 className="text-2xl font-black text-stone-900">管理後台</h1>
+            <p className="text-sm text-stone-500 mt-1 mb-6">店長專用，請輸入管理密碼</p>
+            <input
+              type="password"
+              placeholder="管理者密碼"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-4 rounded-2xl bg-stone-50 text-stone-800 mb-4 outline-none border-2 border-stone-200 focus:border-brand-400 focus:bg-white text-center text-lg"
+            />
+            <button
+              type="submit"
+              className="w-full bg-stone-800 hover:bg-stone-900 active:scale-[0.98] text-white font-black text-lg py-4 rounded-2xl shadow-lg transition"
+            >
+              登入
+            </button>
+          </form>
+          <Link href="/" className="block text-center text-sm font-bold text-stone-500 py-4">
+            ← 回員工入口
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
+    <div className="min-h-screen bg-cream text-stone-800 pb-28 sm:pb-8">
       {/* 頂部導航列 */}
-      <div className="max-w-[1600px] mx-auto mb-6 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold">
-              ← 入口
-            </Link>
-            <span className="text-xl">📋</span>
-            <h1 className="text-xl font-black text-slate-900">管理後台</h1>
+      <div className="sticky top-0 z-40 bg-cream/90 backdrop-blur-md border-b border-amber-100 mb-4">
+        <div className="max-w-[1600px] mx-auto px-3 md:px-6 pt-2.5 pb-2 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Link
+                href="/"
+                aria-label="回入口"
+                className="shrink-0 w-10 h-10 rounded-full bg-white border border-amber-100 shadow-sm flex items-center justify-center text-lg text-stone-600 active:scale-95 transition"
+              >
+                ←
+              </Link>
+              <Chick size={34} hat className="shrink-0" />
+              <h1 className="text-lg font-black text-stone-900 truncate">管理後台</h1>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {view !== 'monitor' && (
+                <select
+                  value={currentStore}
+                  onChange={(e) => setCurrentStore(e.target.value as 'store1' | 'store2')}
+                  className="bg-brand-100 text-brand-900 px-3 py-2 rounded-full font-black outline-none cursor-pointer text-sm border-0"
+                >
+                  <option value="store1">一號店</option>
+                  <option value="store2">二號店</option>
+                </select>
+              )}
+            </div>
           </div>
-          <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-bold">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 px-3 md:mx-0 md:px-0">
             {[
               { key: 'schedule', label: '📅 排班' },
               { key: 'records', label: '📋 表單紀錄' },
@@ -433,55 +474,24 @@ export default function AdminPage() {
               <button
                 key={t.key}
                 onClick={() => setView(t.key as AdminView)}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  view === t.key ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-black transition ${
+                  view === t.key ? 'bg-stone-800 text-white shadow-sm' : 'bg-white text-stone-500 border border-amber-100'
                 }`}
               >
                 {t.label}
               </button>
             ))}
+            <Link
+              href="/ledger"
+              className="shrink-0 px-3.5 py-2 rounded-full bg-emerald-50 text-emerald-700 text-sm font-black border border-emerald-200"
+            >
+              💰 月記帳 🔒
+            </Link>
           </div>
-          <Link href="/ledger" className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-bold border border-emerald-200">
-            💰 月記帳 🔒
-          </Link>
-          {view !== 'monitor' && (
-          <select
-            value={currentStore}
-            onChange={(e) => setCurrentStore(e.target.value as 'store1' | 'store2')}
-            className="bg-slate-100 text-slate-800 px-3 py-2 rounded-xl border border-slate-300 font-bold outline-none focus:border-indigo-500 cursor-pointer text-sm"
-          >
-            <option value="store1">一號店 (88652358)</option>
-            <option value="store2">二號店 (00084258)</option>
-          </select>
-          )}
         </div>
-
-        {view === 'schedule' && (
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExportImage}
-            disabled={isExporting}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-bold transition flex items-center gap-2 shadow-xs text-sm cursor-pointer disabled:opacity-50"
-          >
-            <span>📷</span>
-            {isExporting ? '產生圖檔中...' : '下載班表圖檔'}
-          </button>
-
-          <button
-            onClick={toggleSubmissionOpen}
-            className={`px-4 py-2 rounded-xl font-bold transition text-sm flex items-center gap-2 shadow-xs ${
-              isSubmissionOpen 
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100' 
-                : 'bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${isSubmissionOpen ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-            店員劃休：{isSubmissionOpen ? '開放中' : '已鎖定'}
-          </button>
-        </div>
-        )}
       </div>
 
+      <div className="px-3 md:px-6">
       {view === 'monitor' ? (
         <MenuMonitor />
       ) : view === 'records' ? (
@@ -491,37 +501,60 @@ export default function AdminPage() {
       ) : (
       <>
 
-      {/* 畫筆工具列 */}
-      <div className="max-w-[1600px] mx-auto mb-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
-          <span>🖌️ 排班畫筆（點選後直接點擊格子填入）：</span>
-          <span className="text-indigo-600 font-normal">💡 按住「⋮⋮」可拖曳排序；格子內「+代」可設定當日代理人（每天一位）</span>
+      {/* 排班操作 */}
+      <div className="max-w-[1600px] mx-auto mb-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+        <button
+          onClick={toggleSubmissionOpen}
+          className={`px-4 py-3 sm:py-2 rounded-2xl font-black transition text-sm flex items-center justify-center gap-2 border ${
+            isSubmissionOpen
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              : 'bg-rose-50 text-rose-700 border-rose-300'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${isSubmissionOpen ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+          員工登記：{isSubmissionOpen ? '開放中' : '已鎖定'}
+        </button>
+        <button
+          onClick={handleExportImage}
+          disabled={isExporting}
+          className="px-4 py-3 sm:py-2 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white rounded-2xl font-black transition flex items-center justify-center gap-2 shadow-sm text-sm disabled:opacity-50"
+        >
+          📷 {isExporting ? '產生中...' : '下載班表圖'}
+        </button>
+      </div>
+
+      {/* 畫筆工具列：手機固定在畫面底部，電腦放在上方 */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-amber-100 px-3 pt-2 pb-safe shadow-[0_-4px_16px_rgba(120,80,20,0.08)] sm:static sm:z-auto sm:max-w-[1600px] sm:mx-auto sm:mb-4 sm:rounded-3xl sm:border sm:shadow-sm sm:p-3">
+        <div className="text-[11px] font-bold text-stone-400 mb-1.5 flex items-center justify-between gap-2">
+          <span>🖌️ 選畫筆，再點格子</span>
+          <span className="hidden sm:inline text-brand-700">💡 「⋮⋮」拖曳排序；格子內「+代」設定代理人（每天一位）</span>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[
-            { type: 'normal', label: '🔵 正常班 (18:30~00:30)', activeClass: 'bg-blue-600 text-white' },
-            { type: 'open', label: '🟢 開店班 (18:30~00:30)', activeClass: 'bg-emerald-600 text-white' },
-            { type: 'half', label: '🟡 半天班 (21:00~00:30)', activeClass: 'bg-amber-500 text-white' },
-            { type: 'off', label: '🔴 管理者排休', activeClass: 'bg-rose-500 text-white' },
-            { type: 'none', label: '⚪ 橡皮擦 (清除)', activeClass: 'bg-slate-700 text-white' },
+            { type: 'normal', label: '正常', time: '18:30', activeClass: 'bg-sky-600 text-white' },
+            { type: 'open', label: '開店', time: '18:30', activeClass: 'bg-emerald-600 text-white' },
+            { type: 'half', label: '半天', time: '21:00', activeClass: 'bg-amber-500 text-white' },
+            { type: 'off', label: '排休', time: '', activeClass: 'bg-rose-500 text-white' },
+            { type: 'none', label: '🧽 清除', time: '', activeClass: 'bg-stone-700 text-white' },
           ].map((tool) => (
             <button
               key={tool.type}
               onClick={() => setActiveTool(tool.type as ShiftType)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+              className={`shrink-0 min-w-[64px] px-3 py-2 rounded-2xl text-sm font-black transition border active:scale-95 ${
                 activeTool === tool.type
-                  ? tool.activeClass + ' border-transparent shadow-xs'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  ? tool.activeClass + ' border-transparent shadow-md'
+                  : 'bg-stone-50 text-stone-600 border-stone-200'
               }`}
             >
               {tool.label}
+              {tool.time && <span className="block text-[10px] font-bold opacity-75 leading-none mt-0.5">{tool.time}</span>}
             </button>
           ))}
         </div>
       </div>
 
       {/* 月份切換 */}
-      <div className="max-w-[1600px] mx-auto mb-4 flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="max-w-[1600px] mx-auto mb-3 flex items-center justify-between bg-white rounded-2xl border border-amber-100 shadow-sm p-1">
         <button
           onClick={() => {
             if (month === 1) {
@@ -531,12 +564,13 @@ export default function AdminPage() {
               setMonth(month - 1);
             }
           }}
-          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-xs"
+          aria-label="上個月"
+          className="w-11 h-10 rounded-xl text-stone-500 active:bg-stone-100 font-black text-lg"
         >
-          &lt; 上個月
+          ‹
         </button>
-        <span className="text-base font-black text-slate-800">
-          {year} 年 {month} 月 排班畫板
+        <span className="font-black text-stone-900">
+          {year} 年 {month} 月 排班
         </span>
         <button
           onClick={() => {
@@ -547,21 +581,22 @@ export default function AdminPage() {
               setMonth(month + 1);
             }
           }}
-          className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition text-xs"
+          aria-label="下個月"
+          className="w-11 h-10 rounded-xl text-stone-500 active:bg-stone-100 font-black text-lg"
         >
-          下個月 &gt;
+          ›
         </button>
       </div>
 
       {/* 排班大矩陣：支援橫向滾動且左側員工欄絕對凍結 (Sticky) */}
-      <div className="max-w-[1600px] mx-auto overflow-x-auto mb-8 border border-slate-200/90 rounded-2xl shadow-sm bg-white">
+      <div className="max-w-[1600px] mx-auto overflow-x-auto no-scrollbar mb-6 border border-amber-100 rounded-3xl shadow-sm bg-white">
         <div ref={scheduleTableRef} className="inline-block min-w-full align-middle">
           <table className="w-full border-separate border-spacing-0">
             <thead>
-              <tr className="bg-slate-50">
+              <tr className="bg-stone-50">
                 {/* 凍結欄：左側員工姓名（Sticky Left-0） */}
-                <th className="sticky left-0 z-30 bg-slate-100/95 backdrop-blur-sm border-b border-r border-slate-200 p-3 text-left w-[160px] min-w-[160px] font-bold text-slate-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)]">
-                  員工排序 / 姓名
+                <th className="sticky left-0 z-30 bg-stone-100/95 backdrop-blur-sm border-b border-r border-stone-200 p-2 sm:p-3 text-left w-[96px] min-w-[96px] sm:w-[160px] sm:min-w-[160px] text-xs sm:text-sm font-bold text-stone-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)]">
+                  夥伴
                 </th>
                 {daysArray.map((day) => {
                   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -583,21 +618,21 @@ export default function AdminPage() {
                   return (
                     <th
                       key={day}
-                      className={`border-b border-r border-slate-200 p-2 text-center min-w-[70px] ${
-                        isWeekend ? 'bg-indigo-50/50' : 'bg-slate-50'
+                      className={`border-b border-r border-stone-200 p-2 text-center min-w-[58px] sm:min-w-[70px] ${
+                        isWeekend ? 'bg-brand-50/50' : 'bg-stone-50'
                       }`}
                     >
-                      <div className={`text-sm font-black ${isWeekend ? 'text-indigo-600' : 'text-slate-800'}`}>
+                      <div className={`text-sm font-black ${isWeekend ? 'text-brand-700' : 'text-stone-800'}`}>
                         {day}
                       </div>
-                      <div className={`text-[11px] font-semibold ${isWeekend ? 'text-indigo-400' : 'text-slate-400'}`}>
+                      <div className={`text-[11px] font-semibold ${isWeekend ? 'text-brand-600' : 'text-stone-400'}`}>
                         週{dayNames[dayOfWeek]}
                       </div>
 
                       {/* 當日排班人數即時標籤 */}
                       <div className="mt-1 flex flex-col items-center gap-0.5 min-h-[40px]">
                         {(normalCount > 0 || openCount > 0) && (
-                          <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none">
+                          <span className="bg-sky-100 text-sky-800 text-[10px] font-bold px-1.5 py-0.5 rounded leading-none">
                             正 {normalCount + openCount}
                           </span>
                         )}
@@ -633,26 +668,43 @@ export default function AdminPage() {
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={() => handleDrop(index)}
-                  className={`group hover:bg-slate-50/80 transition ${
-                    draggedEmployeeIndex === index ? 'opacity-40 bg-indigo-50' : ''
+                  className={`group hover:bg-stone-50/80 transition ${
+                    draggedEmployeeIndex === index ? 'opacity-40 bg-brand-50' : ''
                   }`}
                 >
                   {/* 核心優化：左側凍結欄（Sticky Left-0 永遠留在最左側） */}
-                  <td className="sticky left-0 z-20 bg-white group-hover:bg-slate-50 border-b border-r border-slate-200 p-2.5 font-bold text-slate-800 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)] select-none">
+                  <td className="sticky left-0 z-20 bg-white group-hover:bg-stone-50 border-b border-r border-stone-200 p-1.5 sm:p-2.5 font-bold text-stone-800 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)] select-none">
                     <div className="flex items-center justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 overflow-hidden">
                         {/* 拖曳手柄圖示 */}
-                        <span 
-                          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-indigo-600 px-0.5 text-sm font-mono"
+                        <span
+                          className="hidden sm:inline cursor-grab active:cursor-grabbing text-stone-400 hover:text-brand-700 px-0.5 text-sm font-mono"
                           title="拖曳調整順序"
                         >
                           ⋮⋮
                         </span>
-                        <span className="truncate text-sm font-bold text-slate-800">{emp.name}</span>
+                        {/* 手機：上下移動 */}
+                        <span className="sm:hidden flex flex-col -my-1">
+                          <button
+                            onClick={() => moveEmployee(index, -1)}
+                            className="text-[10px] leading-none text-stone-400 px-0.5 py-0.5 active:text-brand-700"
+                            aria-label="往上移"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            onClick={() => moveEmployee(index, 1)}
+                            className="text-[10px] leading-none text-stone-400 px-0.5 py-0.5 active:text-brand-700"
+                            aria-label="往下移"
+                          >
+                            ▼
+                          </button>
+                        </span>
+                        <span className="truncate text-[13px] sm:text-sm font-bold text-stone-800">{emp.name}</span>
                       </div>
                       <button
                         onClick={() => handleDeleteEmployee(emp.id, emp.name)}
-                        className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 px-1 py-0.5 rounded transition text-xs"
+                        className="text-stone-300 hover:text-rose-500 hover:bg-rose-50 px-1 py-0.5 rounded transition text-xs"
                         title="刪除"
                       >
                         ✕
@@ -674,7 +726,7 @@ export default function AdminPage() {
                       <td
                         key={day}
                         onClick={() => handleCellClick(emp.id, dateStr)}
-                        className="border-b border-r border-slate-200 p-1 text-center cursor-pointer hover:bg-indigo-50/70 transition relative select-none h-15"
+                        className="border-b border-r border-stone-200 p-1 text-center cursor-pointer hover:bg-brand-50/70 transition relative select-none h-15"
                       >
                         {/* 劃休標籤 */}
                         {isUnavail && (
@@ -685,16 +737,16 @@ export default function AdminPage() {
 
                         {/* 主班別膠囊 */}
                         {shift?.shift_type === 'normal' && (
-                          <div className="bg-blue-600 text-white rounded-md py-1 font-bold text-xs shadow-2xs">正常</div>
+                          <div className="bg-sky-600 text-white rounded-lg py-1 font-bold text-xs shadow-2xs">正常</div>
                         )}
                         {shift?.shift_type === 'open' && (
-                          <div className="bg-emerald-600 text-white rounded-md py-1 font-bold text-xs shadow-2xs">開店</div>
+                          <div className="bg-emerald-600 text-white rounded-lg py-1 font-bold text-xs shadow-2xs">開店</div>
                         )}
                         {shift?.shift_type === 'half' && (
-                          <div className="bg-amber-500 text-white rounded-md py-1 font-bold text-xs shadow-2xs">半天</div>
+                          <div className="bg-amber-500 text-white rounded-lg py-1 font-bold text-xs shadow-2xs">半天</div>
                         )}
                         {shift?.shift_type === 'off' && (
-                          <div className="bg-rose-500 text-white rounded-md py-1 font-bold text-xs shadow-2xs">排休</div>
+                          <div className="bg-rose-500 text-white rounded-lg py-1 font-bold text-xs shadow-2xs">排休</div>
                         )}
 
                         <div className="mt-1 flex items-center justify-center gap-0.5">
@@ -704,7 +756,7 @@ export default function AdminPage() {
                             className={`text-[10px] px-1 py-0.2 rounded font-bold transition ${
                               shift?.is_night
                                 ? 'bg-purple-600 text-white shadow-2xs'
-                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+                                : 'bg-stone-100 text-stone-400 hover:bg-stone-200 hover:text-stone-600'
                             }`}
                           >
                             {shift?.is_night ? '宵✓' : '+宵'}
@@ -717,7 +769,7 @@ export default function AdminPage() {
                               className={`text-[10px] px-1 py-0.2 rounded font-bold transition ${
                                 shift?.is_deputy
                                   ? 'bg-orange-500 text-white shadow-2xs'
-                                  : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'
+                                  : 'bg-stone-100 text-stone-400 hover:bg-orange-100 hover:text-orange-600'
                               }`}
                             >
                               {shift?.is_deputy ? '代✓' : '+代'}
@@ -734,21 +786,21 @@ export default function AdminPage() {
       </div>
 
       {/* 底部功能區：新增員工與薪資統計 */}
-      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* 新增店員 */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 flex flex-col justify-between">
           <div>
-            <h2 className="text-base font-black text-slate-800 mb-1">新增店員名單</h2>
-            <p className="text-xs text-slate-400 mb-3">新加入的員工預設會排在最下方</p>
+            <h2 className="text-base font-black text-stone-800 mb-1">新增店員名單</h2>
+            <p className="text-xs text-stone-400 mb-3">新加入的員工預設會排在最下方</p>
             <form onSubmit={handleAddEmployee} className="flex gap-2">
               <input
                 type="text"
                 placeholder="輸入店員姓名"
                 value={newEmployeeName}
                 onChange={(e) => setNewEmployeeName(e.target.value)}
-                className="flex-1 p-2.5 rounded-xl bg-slate-50 text-slate-800 outline-none border border-slate-200 focus:border-indigo-500 focus:bg-white text-sm transition"
+                className="flex-1 p-2.5 rounded-xl bg-stone-50 text-stone-800 outline-none border border-stone-200 focus:border-brand-500 focus:bg-white text-sm transition"
               />
-              <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition shadow-xs">
+              <button type="submit" className="bg-brand-600 hover:bg-brand-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition shadow-xs">
                 新增
               </button>
             </form>
@@ -756,17 +808,39 @@ export default function AdminPage() {
         </div>
 
         {/* 薪資統計卡片 */}
-        <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="lg:col-span-2 bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-base font-black text-slate-800">{month} 月份薪資自動統計</h2>
-              <p className="text-xs text-slate-400">時薪 $210 / 宵夜班不計薪</p>
+              <h2 className="text-base font-black text-stone-800">{month} 月份薪資自動統計</h2>
+              <p className="text-xs text-stone-400">時薪 $210 / 宵夜班不計薪</p>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* 手機：卡片 */}
+          <div className="sm:hidden space-y-2">
+            {employees.map((emp) => {
+              const salary = calculateSalary(emp.id);
+              return (
+                <div key={emp.id} className="rounded-2xl bg-stone-50 border border-stone-100 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-stone-900">{emp.name}</span>
+                    <span className="font-mono font-black text-emerald-600 text-lg">${salary.totalPay.toLocaleString()}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px] font-bold">
+                    <span className="bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">正常/開店 {salary.normalCount + salary.openCount}</span>
+                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">半天 {salary.halfCount}</span>
+                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">宵夜 {salary.nightCount}</span>
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">代理 {salary.deputyCount}</span>
+                    <span className="bg-brand-100 text-brand-800 px-2 py-0.5 rounded-full">{salary.totalHours} 小時</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* 電腦：表格 */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-400 text-xs">
+                <tr className="border-b border-stone-200 text-stone-400 text-xs">
                   <th className="py-2 font-bold">姓名</th>
                   <th className="py-2 font-bold">正常/開店 (6h)</th>
                   <th className="py-2 font-bold">半天 (3.5h)</th>
@@ -780,13 +854,13 @@ export default function AdminPage() {
                 {employees.map((emp) => {
                   const salary = calculateSalary(emp.id);
                   return (
-                    <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                      <td className="py-2.5 font-bold text-slate-800">{emp.name}</td>
-                      <td className="py-2.5 text-slate-600">{salary.normalCount + salary.openCount} 次</td>
-                      <td className="py-2.5 text-slate-600">{salary.halfCount} 次</td>
-                      <td className="py-2.5 text-slate-600">{salary.nightCount} 次</td>
-                      <td className="py-2.5 text-slate-600">{salary.deputyCount} 次</td>
-                      <td className="py-2.5 font-mono font-bold text-indigo-600">{salary.totalHours} 小時</td>
+                    <tr key={emp.id} className="border-b border-stone-100 hover:bg-stone-50 transition">
+                      <td className="py-2.5 font-bold text-stone-800">{emp.name}</td>
+                      <td className="py-2.5 text-stone-600">{salary.normalCount + salary.openCount} 次</td>
+                      <td className="py-2.5 text-stone-600">{salary.halfCount} 次</td>
+                      <td className="py-2.5 text-stone-600">{salary.nightCount} 次</td>
+                      <td className="py-2.5 text-stone-600">{salary.deputyCount} 次</td>
+                      <td className="py-2.5 font-mono font-bold text-brand-700">{salary.totalHours} 小時</td>
                       <td className="py-2.5 font-mono font-black text-emerald-600 text-right text-base">
                         ${salary.totalPay.toLocaleString()}
                       </td>
@@ -800,6 +874,7 @@ export default function AdminPage() {
       </div>
       </>
       )}
+      </div>
     </div>
   );
 }

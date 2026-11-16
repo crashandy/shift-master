@@ -43,7 +43,7 @@ const emptyMonth = (store: LedgerStore, month: string): LedgerMonth => ({
 });
 
 const inputCls =
-  'w-full p-2 rounded-lg bg-slate-50 text-slate-800 outline-none border border-slate-200 focus:border-emerald-500 focus:bg-white text-sm transition';
+  'w-full p-2 rounded-lg bg-stone-50 text-stone-800 outline-none border border-stone-200 focus:border-emerald-500 focus:bg-white text-sm transition';
 const btn = 'px-3 py-1.5 rounded-xl text-sm font-bold transition';
 
 export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
@@ -160,15 +160,15 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
+    <div className="min-h-screen bg-cream text-stone-800 p-4 md:p-6">
       {/* 頂部 */}
-      <div className="max-w-6xl mx-auto mb-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto mb-5 bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/admin" className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-bold">
+          <Link href="/admin" className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 text-sm font-bold">
             ← 後台
           </Link>
-          <h1 className="text-xl font-black text-slate-900">💰 月記帳</h1>
-          <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-bold">
+          <h1 className="text-xl font-black text-stone-900">💰 月記帳</h1>
+          <div className="flex bg-stone-100 p-1 rounded-xl text-sm font-bold">
             {[
               { key: 'month', label: '📒 當月' },
               { key: 'overview', label: '📊 每月總覽' },
@@ -178,7 +178,7 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
                 key={t.key}
                 onClick={() => setView(t.key as View)}
                 className={`px-3 py-1.5 rounded-lg transition ${
-                  view === t.key ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                  view === t.key ? 'bg-white text-emerald-600 shadow-xs' : 'text-stone-500 hover:text-stone-700'
                 }`}
               >
                 {t.label}
@@ -188,13 +188,13 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
           <select
             value={store}
             onChange={(e) => setStore(e.target.value as LedgerStore)}
-            className="bg-slate-100 px-3 py-2 rounded-xl border border-slate-300 font-bold outline-none text-sm cursor-pointer"
+            className="bg-stone-100 px-3 py-2 rounded-xl border border-stone-300 font-bold outline-none text-sm cursor-pointer"
           >
             <option value="store1">{STORE_NAMES.store1}</option>
             <option value="store2">{STORE_NAMES.store2}</option>
           </select>
         </div>
-        <button onClick={onLogout} className={`${btn} bg-slate-100 hover:bg-slate-200 text-slate-600`}>
+        <button onClick={onLogout} className={`${btn} bg-stone-100 hover:bg-stone-200 text-stone-600`}>
           登出
         </button>
       </div>
@@ -205,20 +205,20 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
       {view === 'month' && (
         <div className="max-w-6xl mx-auto space-y-5">
           {/* 月份切換 + 動作 */}
-          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-white p-3 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <button onClick={() => shiftMonth(-1)} className={`${btn} bg-slate-100 hover:bg-slate-200`}>&lt;</button>
+              <button onClick={() => shiftMonth(-1)} className={`${btn} bg-stone-100 hover:bg-stone-200`}>&lt;</button>
               <span className="text-base font-black w-36 text-center">{year} 年 {month} 月</span>
-              <button onClick={() => shiftMonth(1)} className={`${btn} bg-slate-100 hover:bg-slate-200`}>&gt;</button>
+              <button onClick={() => shiftMonth(1)} className={`${btn} bg-stone-100 hover:bg-stone-200`}>&gt;</button>
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setShowImport(true)} className={`${btn} bg-emerald-600 hover:bg-emerald-700 text-white`}>
                 ⬆️ 匯入錢櫃 CSV
               </button>
-              <button onClick={applyFixed} className={`${btn} bg-slate-100 hover:bg-slate-200 text-slate-700`}>
+              <button onClick={applyFixed} className={`${btn} bg-stone-100 hover:bg-stone-200 text-stone-700`}>
                 📌 帶入固定項目
               </button>
-              <button onClick={exportMonth} className={`${btn} bg-slate-100 hover:bg-slate-200 text-slate-700`}>
+              <button onClick={exportMonth} className={`${btn} bg-stone-100 hover:bg-stone-200 text-stone-700`}>
                 ⬇️ 匯出本月
               </button>
             </div>
@@ -233,30 +233,30 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
           {/* 結算 */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: '收入合計', value: summary.income, cls: 'text-slate-800' },
+              { label: '收入合計', value: summary.income, cls: 'text-stone-800' },
               { label: '實支出', value: summary.expense, cls: 'text-rose-600' },
-              { label: '房租', value: summary.rent, cls: 'text-slate-600' },
-              { label: '人力', value: summary.labor, cls: 'text-slate-600' },
+              { label: '房租', value: summary.rent, cls: 'text-stone-600' },
+              { label: '人力', value: summary.labor, cls: 'text-stone-600' },
               { label: '總收益', value: summary.profit, cls: summary.profit >= 0 ? 'text-emerald-600' : 'text-rose-600' },
             ].map((c) => (
-              <div key={c.label} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <div className="text-xs font-bold text-slate-400">{c.label}</div>
+              <div key={c.label} className="bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
+                <div className="text-xs font-bold text-stone-400">{c.label}</div>
                 <div className={`text-xl font-black font-mono ${c.cls}`}>{fmtMoney(c.value)}</div>
               </div>
             ))}
           </div>
           {form.recorded_profit !== null && form.recorded_profit !== summary.profit && (
-            <p className="text-xs text-slate-400 -mt-3">原月報表的總收益：{fmtMoney(form.recorded_profit)}</p>
+            <p className="text-xs text-stone-400 -mt-3">原月報表的總收益：{fmtMoney(form.recorded_profit)}</p>
           )}
 
           {/* 收入與人力 */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-black">收入 / 人力 / 房租</h2>
               <button
                 onClick={saveMonth}
                 disabled={!dirty}
-                className={`${btn} ${dirty ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-100 text-slate-400'}`}
+                className={`${btn} ${dirty ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-stone-100 text-stone-400'}`}
               >
                 {dirty ? '儲存' : monthRow ? '已儲存' : '尚未填寫'}
               </button>
@@ -273,7 +273,7 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
                   ['other_labor', '其他人力'],
                 ] as [keyof LedgerMonth, string][]
               ).map(([k, label]) => (
-                <label key={k} className="text-xs font-bold text-slate-500">
+                <label key={k} className="text-xs font-bold text-stone-500">
                   {label}
                   <input
                     inputMode="numeric"
@@ -283,7 +283,7 @@ export default function LedgerApp({ onLogout }: { onLogout: () => void }) {
                   />
                 </label>
               ))}
-              <label className="text-xs font-bold text-slate-500 col-span-2 md:col-span-1">
+              <label className="text-xs font-bold text-stone-500 col-span-2 md:col-span-1">
                 備註
                 <input
                   value={form.note ?? ''}
@@ -371,19 +371,19 @@ function EntrySection({
   const allCats = [...new Set([...categories, ...entries.map((e) => e.category)])];
 
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+    <div className="bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="font-black">
           {SECTION_LABEL[section]}
-          {section === 'income_other' && <span className="text-xs font-normal text-slate-400 ml-2">不計入總收益</span>}
+          {section === 'income_other' && <span className="text-xs font-normal text-stone-400 ml-2">不計入總收益</span>}
         </h2>
-        <span className="font-mono font-black text-slate-700">{fmtMoney(total)}</span>
+        <span className="font-mono font-black text-stone-700">{fmtMoney(total)}</span>
       </div>
 
       {byCat.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
           {byCat.map(([c, t]) => (
-            <span key={c} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-bold">
+            <span key={c} className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-lg font-bold">
               {c} <span className="font-mono">{fmtMoney(t)}</span>
             </span>
           ))}
@@ -413,7 +413,7 @@ function EntrySection({
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white">
-              <tr className="text-xs text-slate-400 border-b border-slate-200 text-left">
+              <tr className="text-xs text-stone-400 border-b border-stone-200 text-left">
                 <th className="py-1.5 font-bold">日期</th>
                 <th className="py-1.5 font-bold">分類</th>
                 <th className="py-1.5 font-bold">名稱</th>
@@ -424,22 +424,22 @@ function EntrySection({
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="py-1.5 font-mono text-slate-500">{e.entry_date?.slice(5) ?? '—'}</td>
+                <tr key={e.id} className="border-b border-stone-100 hover:bg-stone-50">
+                  <td className="py-1.5 font-mono text-stone-500">{e.entry_date?.slice(5) ?? '—'}</td>
                   <td className="py-1.5">
                     <select
                       value={e.category}
                       onChange={(ev) => onCategory(e, ev.target.value)}
-                      className="bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
+                      className="bg-transparent font-bold text-stone-700 outline-none cursor-pointer"
                     >
                       {[...new Set([e.category, ...categories])].map((c) => <option key={c}>{c}</option>)}
                     </select>
                   </td>
-                  <td className="py-1.5 text-slate-600">{e.name}</td>
+                  <td className="py-1.5 text-stone-600">{e.name}</td>
                   <td className="py-1.5 font-mono font-bold text-right">{fmtMoney(e.amount)}</td>
-                  <td className="py-1.5 text-xs text-slate-400 pl-3">{SOURCE_LABEL[e.source]}</td>
+                  <td className="py-1.5 text-xs text-stone-400 pl-3">{SOURCE_LABEL[e.source]}</td>
                   <td className="py-1.5 text-right">
-                    <button onClick={() => onDelete(e)} className="text-slate-300 hover:text-rose-500 px-1">✕</button>
+                    <button onClick={() => onDelete(e)} className="text-stone-300 hover:text-rose-500 px-1">✕</button>
                   </td>
                 </tr>
               ))}
@@ -483,25 +483,25 @@ function Overview({ store, storeName, onOpen }: { store: LedgerStore; storeName:
   const rows = months.map((m) => ({ m, s: summarize(entries.filter((e) => e.month === m.month), m) }));
 
   return (
-    <div className="max-w-6xl mx-auto bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+    <div className="max-w-6xl mx-auto bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-black">{storeName} 每月總覽</h2>
         <button
           onClick={() => downloadText(`${storeName}_每月總覽.csv`, exportMonthsOverviewCsv(storeName, months, entries))}
-          className={`${btn} bg-slate-100 hover:bg-slate-200 text-slate-700`}
+          className={`${btn} bg-stone-100 hover:bg-stone-200 text-stone-700`}
         >
           ⬇️ 匯出總覽
         </button>
       </div>
       {loading ? (
-        <p className="text-slate-400 text-sm">載入中...</p>
+        <p className="text-stone-400 text-sm">載入中...</p>
       ) : !rows.length ? (
-        <p className="text-slate-400 text-sm">還沒有任何月份的資料。</p>
+        <p className="text-stone-400 text-sm">還沒有任何月份的資料。</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-xs text-slate-400 border-b border-slate-200 text-right">
+              <tr className="text-xs text-stone-400 border-b border-stone-200 text-right">
                 <th className="py-2 text-left font-bold">月份</th>
                 <th className="py-2 font-bold">收入</th>
                 <th className="py-2 font-bold">實支出</th>
@@ -515,7 +515,7 @@ function Overview({ store, storeName, onOpen }: { store: LedgerStore; storeName:
                 <tr
                   key={m.month}
                   onClick={() => onOpen(Number(m.month.slice(0, 4)), Number(m.month.slice(5, 7)))}
-                  className="border-b border-slate-100 hover:bg-emerald-50 cursor-pointer text-right font-mono"
+                  className="border-b border-stone-100 hover:bg-emerald-50 cursor-pointer text-right font-mono"
                 >
                   <td className="py-2 text-left font-bold font-sans">
                     {m.month.slice(0, 7)}

@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
+/* 18度雞 主題：小雞黃 + 奶油底色，手機優先 */
+@theme {
+  /* 品牌色：小雞金黃（按鈕用 600 以上，白字才看得清楚） */
+  --color-brand-50: #fff8e6;
+  --color-brand-100: #ffefc2;
+  --color-brand-200: #ffdf85;
+  --color-brand-300: #ffcb47;
+  --color-brand-400: #ffb81f;
+  --color-brand-500: #f59e0b;
+  --color-brand-600: #c9670a;
+  --color-brand-700: #a8520a;
+  --color-brand-800: #85400c;
+  --color-brand-900: #6b3410;
+
+  /* 頁面底色 */
+  --color-cream: #fff9ee;
+
+  --font-sans: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fff9ee;
+  --foreground: #292524;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* 手機底部安全區（iPhone 底部橫條） */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* 隱藏橫向捲軸但保留滑動 */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 小雞輕輕晃動 */
+@keyframes chick-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(-3deg); }
+}
+.chick-bob {
+  animation: chick-bob 2.4s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chick-bob { animation: none; }
 }

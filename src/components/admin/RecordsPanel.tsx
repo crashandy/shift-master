@@ -98,14 +98,14 @@ export default function RecordsPanel({ store }: { store: 'store1' | 'store2' }) 
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-4">
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`px-3 py-1.5 rounded-xl text-sm font-bold border transition ${
-                tab === t.key ? 'bg-slate-800 text-white border-transparent' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                tab === t.key ? 'bg-stone-800 text-white border-transparent' : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
               }`}
             >
               {t.label}
@@ -113,23 +113,23 @@ export default function RecordsPanel({ store }: { store: 'store1' | 'store2' }) 
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => shiftMonth(-1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-xs">
+          <button onClick={() => shiftMonth(-1)} className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-xl font-bold text-xs">
             &lt; 上個月
           </button>
-          <span className="font-black text-slate-800">{year} 年 {month} 月</span>
-          <button onClick={() => shiftMonth(1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-xs">
+          <span className="font-black text-stone-800">{year} 年 {month} 月</span>
+          <button onClick={() => shiftMonth(1)} className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-xl font-bold text-xs">
             下個月 &gt;
           </button>
         </div>
       </div>
 
-      {loading && <div className="text-center text-slate-400 py-6">載入中...</div>}
+      {loading && <div className="text-center text-stone-400 py-6">載入中...</div>}
 
       {!loading && tab !== 'butter' && (
         <>
           {/* 每日完成狀況 */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="text-xs font-bold text-slate-400 mb-3">
+          <div className="bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
+            <div className="text-xs font-bold text-stone-400 mb-3">
               每日填寫狀況（綠＝全部完成、黃＝有未完成項目、紅＝沒填）
             </div>
             <div className="grid grid-cols-7 sm:grid-cols-10 lg:grid-cols-[repeat(16,minmax(0,1fr))] gap-1.5">
@@ -139,7 +139,7 @@ export default function RecordsPanel({ store }: { store: 'store1' | 'store2' }) 
                 const future = ymd > today;
                 const full = list.some((s) => s.done_count === s.total_count);
                 const cls = future
-                  ? 'bg-slate-50 text-slate-300 border-slate-100'
+                  ? 'bg-stone-50 text-stone-300 border-stone-100'
                   : list.length === 0
                   ? 'bg-rose-50 text-rose-600 border-rose-200'
                   : full
@@ -156,19 +156,19 @@ export default function RecordsPanel({ store }: { store: 'store1' | 'store2' }) 
           </div>
 
           {/* 紀錄列表 */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="text-xs font-bold text-slate-400 mb-3">填寫紀錄（點開看明細，紅字為未完成項目）</div>
+          <div className="bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
+            <div className="text-xs font-bold text-stone-400 mb-3">填寫紀錄（點開看明細，紅字為未完成項目）</div>
             {subs.length === 0 ? (
-              <div className="text-sm text-slate-400">這個月沒有紀錄</div>
+              <div className="text-sm text-stone-400">這個月沒有紀錄</div>
             ) : (
               <div className="space-y-2">
                 {subs.map((s) => (
-                  <div key={s.id} className="border border-slate-200 rounded-xl">
+                  <div key={s.id} className="border border-stone-200 rounded-xl">
                     <button
                       onClick={() => setOpenId(openId === s.id ? null : s.id)}
                       className="w-full flex flex-wrap justify-between items-center gap-2 px-3 py-2.5 text-sm"
                     >
-                      <span className="font-bold text-slate-700">
+                      <span className="font-bold text-stone-700">
                         {fmtBusinessDate(s.business_date)}・{fmtTime(s.submitted_at)} 送出・{s.employee_name}
                         {s.note && <span className="ml-1">📝</span>}
                       </span>
@@ -187,27 +187,27 @@ export default function RecordsPanel({ store }: { store: 'store1' | 'store2' }) 
 
       {!loading && tab === 'butter' && (
         <>
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="text-xs font-bold text-slate-400 mb-3">本月各口味製作量</div>
+          <div className="bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
+            <div className="text-xs font-bold text-stone-400 mb-3">本月各口味製作量</div>
             {flavorTotals.length === 0 ? (
-              <div className="text-sm text-slate-400">這個月沒有紀錄</div>
+              <div className="text-sm text-stone-400">這個月沒有紀錄</div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                 {flavorTotals.map(([name, t]) => (
                   <div key={name} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    <div className="font-black text-slate-800">{name}</div>
+                    <div className="font-black text-stone-800">{name}</div>
                     <div className="text-amber-700 font-bold">{t.weight.toLocaleString()} g</div>
-                    <div className="text-xs text-slate-500">{t.count} 批</div>
+                    <div className="text-xs text-stone-500">{t.count} 批</div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs overflow-x-auto">
+          <div className="bg-white p-4 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead>
-                <tr className="border-b border-slate-200 text-xs text-slate-400">
+                <tr className="border-b border-stone-200 text-xs text-stone-400">
                   <th className="py-2 font-bold">製作時間</th>
                   <th className="py-2 font-bold">口味</th>
                   <th className="py-2 font-bold text-right">重量</th>
@@ -217,12 +217,12 @@ export default function RecordsPanel({ store }: { store: 'store1' | 'store2' }) 
               </thead>
               <tbody>
                 {batches.map((b) => (
-                  <tr key={b.id} className="border-b border-slate-100">
+                  <tr key={b.id} className="border-b border-stone-100">
                     <td className="py-2">{fmtDateTime(b.made_at)}</td>
                     <td className="py-2 font-bold">{b.flavor}</td>
                     <td className="py-2 text-right font-mono font-bold text-amber-700">{Number(b.weight_g).toLocaleString()} g</td>
                     <td className="py-2 pl-4">{b.employee_name}</td>
-                    <td className="py-2 text-slate-500">{b.note}</td>
+                    <td className="py-2 text-stone-500">{b.note}</td>
                   </tr>
                 ))}
               </tbody>

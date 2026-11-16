@@ -9,9 +9,9 @@ export default function SubmissionDetail({ s }: { s: ChecklistSubmission }) {
       {s.items.map((i) => {
         const done = isItemDone(i);
         return (
-          <div key={i.item_id} className={`flex justify-between gap-2 ${done ? 'text-slate-500' : 'text-rose-600 font-bold'}`}>
+          <div key={i.item_id} className={`flex justify-between gap-2 ${done ? 'text-stone-500' : 'text-rose-600 font-bold'}`}>
             <span>
-              {i.section ? <span className="text-slate-400">[{i.section}] </span> : null}
+              {i.section ? <span className="text-stone-400">[{i.section}] </span> : null}
               {i.title}
             </span>
             <span className="shrink-0">
