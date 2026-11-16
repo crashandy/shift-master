@@ -503,7 +503,7 @@ export default function EmployeePage() {
           <>
             {/* 圖例 */}
             <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] font-bold text-stone-500 px-1">
-              {Object.values(SHIFT_META).map((m) => (
+              {(['normal', 'open', 'half', 'off'] as const).map((k) => SHIFT_META[k]).map((m) => (
                 <span key={m.label} className="flex items-center gap-1">
                   <span className={`w-2.5 h-2.5 rounded-full ${m.dot}`} />
                   {m.label}
