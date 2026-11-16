@@ -7,7 +7,7 @@ import { BIG_CATEGORIES, FixedItem, LedgerStore, PosRule, fmtMoney } from '@/lib
 import { STORE_NAMES } from '@/lib/staffSession';
 
 const inputCls =
-  'p-2 rounded-lg bg-slate-50 text-slate-800 outline-none border border-slate-200 focus:border-emerald-500 focus:bg-white text-sm';
+  'p-2 rounded-lg bg-stone-50 text-stone-800 outline-none border border-stone-200 focus:border-emerald-500 focus:bg-white text-sm';
 
 const ACTION_LABEL: Record<PosRule['action'], string> = {
   category: '歸類',
@@ -83,9 +83,9 @@ export default function LedgerSettings({ store }: { store: LedgerStore }) {
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
         <h2 className="font-black mb-1">每月固定項目（{STORE_NAMES[store]}）</h2>
-        <p className="text-xs text-slate-400 mb-3">在當月頁面按「帶入固定項目」就會加進大筆支出，例如貸款、勞退。</p>
+        <p className="text-xs text-stone-400 mb-3">在當月頁面按「帶入固定項目」就會加進大筆支出，例如貸款、勞退。</p>
         <form onSubmit={addItem} className="flex gap-2 mb-3">
           <input list="fixed-cats" placeholder="項目" value={name} onChange={(e) => setName(e.target.value)} className={`${inputCls} flex-1`} />
           <datalist id="fixed-cats">{BIG_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
@@ -93,7 +93,7 @@ export default function LedgerSettings({ store }: { store: LedgerStore }) {
           <button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 rounded-lg text-sm">新增</button>
         </form>
         {items.map((it) => (
-          <div key={it.id} className="flex items-center justify-between border-b border-slate-100 py-2 text-sm">
+          <div key={it.id} className="flex items-center justify-between border-b border-stone-100 py-2 text-sm">
             <span className="font-bold">{it.name}</span>
             <div className="flex items-center gap-2">
               <input
@@ -102,16 +102,16 @@ export default function LedgerSettings({ store }: { store: LedgerStore }) {
                 className={`${inputCls} w-28 text-right font-mono py-1`}
                 title={fmtMoney(it.amount)}
               />
-              <button onClick={() => removeItem(it)} className="text-slate-300 hover:text-rose-500 px-1">✕</button>
+              <button onClick={() => removeItem(it)} className="text-stone-300 hover:text-rose-500 px-1">✕</button>
             </div>
           </div>
         ))}
-        {!items.length && <p className="text-sm text-slate-400">還沒有固定項目。</p>}
+        {!items.length && <p className="text-sm text-stone-400">還沒有固定項目。</p>}
       </div>
 
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="bg-white p-5 rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5">
         <h2 className="font-black mb-1">錢櫃分類規則（兩店共用）</h2>
-        <p className="text-xs text-slate-400 mb-3">匯入錢櫃時依「原因」比對，數字小的優先。沒對到的一律歸雜項。</p>
+        <p className="text-xs text-stone-400 mb-3">匯入錢櫃時依「原因」比對，數字小的優先。沒對到的一律歸雜項。</p>
         <form onSubmit={addRule} className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
           <input placeholder="關鍵字" value={rule.keyword} onChange={(e) => setRule({ ...rule, keyword: e.target.value })} className={inputCls} />
           <select value={rule.match} onChange={(e) => setRule({ ...rule, match: e.target.value as PosRule['match'] })} className={inputCls}>
@@ -136,13 +136,13 @@ export default function LedgerSettings({ store }: { store: LedgerStore }) {
           <table className="w-full text-sm">
             <tbody>
               {rules.map((r) => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="py-1.5 font-mono text-xs text-slate-400 w-8">{r.priority}</td>
+                <tr key={r.id} className="border-b border-stone-100">
+                  <td className="py-1.5 font-mono text-xs text-stone-400 w-8">{r.priority}</td>
                   <td className="py-1.5 font-bold">「{r.keyword}」</td>
-                  <td className="py-1.5 text-slate-500 text-xs">{r.match === 'equals' ? '完全相同' : '包含'}</td>
+                  <td className="py-1.5 text-stone-500 text-xs">{r.match === 'equals' ? '完全相同' : '包含'}</td>
                   <td className="py-1.5">{r.action === 'category' ? r.category : ACTION_LABEL[r.action]}</td>
                   <td className="py-1.5 text-right">
-                    <button onClick={() => removeRule(r)} className="text-slate-300 hover:text-rose-500 px-1">✕</button>
+                    <button onClick={() => removeRule(r)} className="text-stone-300 hover:text-rose-500 px-1">✕</button>
                   </td>
                 </tr>
               ))}

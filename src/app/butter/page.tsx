@@ -96,11 +96,11 @@ function ButterForm({
     <>
       <EmployeeSelect session={session} update={update} employees={employees} />
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
+      <div className="bg-white rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 p-4 space-y-4">
         <div>
-          <div className="text-xs font-bold text-slate-400 mb-2">製作口味</div>
+          <div className="text-xs font-bold text-stone-400 mb-2">製作口味</div>
           {flavors.length === 0 ? (
-            <div className="text-sm text-slate-400">尚未設定口味，請店長到後台「表單設定」新增。</div>
+            <div className="text-sm text-stone-400">尚未設定口味，請店長到後台「表單設定」新增。</div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {flavors.map((f) => (
@@ -111,7 +111,7 @@ function ButterForm({
                   className={`py-3 px-2 rounded-xl text-sm font-bold border transition ${
                     flavor === f.name
                       ? 'bg-amber-500 text-white border-amber-500 shadow'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50'
+                      : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-amber-50'
                   }`}
                 >
                   {f.name}
@@ -122,7 +122,7 @@ function ButterForm({
         </div>
 
         <label className="block">
-          <span className="block text-xs font-bold text-slate-400 mb-1.5">製作重量</span>
+          <span className="block text-xs font-bold text-stone-400 mb-1.5">製作重量</span>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -130,29 +130,29 @@ function ButterForm({
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
               placeholder="例如 1500"
-              className="flex-1 p-3 rounded-xl bg-slate-50 border border-slate-200 text-lg font-bold outline-none focus:border-indigo-500"
+              className="flex-1 p-3 rounded-xl bg-stone-50 border border-stone-200 text-lg font-bold outline-none focus:border-brand-500"
             />
-            <span className="font-bold text-slate-500">公克 (g)</span>
+            <span className="font-bold text-stone-500">公克 (g)</span>
           </div>
         </label>
 
         <label className="block">
-          <span className="block text-xs font-bold text-slate-400 mb-1.5">製作時間</span>
+          <span className="block text-xs font-bold text-stone-400 mb-1.5">製作時間</span>
           <input
             type="datetime-local"
             value={madeAt}
             onChange={(e) => setMadeAt(e.target.value)}
-            className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-base font-bold outline-none focus:border-indigo-500"
+            className="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 text-base font-bold outline-none focus:border-brand-500"
           />
         </label>
 
         <label className="block">
-          <span className="block text-xs font-bold text-slate-400 mb-1.5">備註（選填）</span>
+          <span className="block text-xs font-bold text-stone-400 mb-1.5">備註（選填）</span>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="例如：批號、放置位置"
-            className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-base outline-none focus:border-indigo-500"
+            className="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 text-base outline-none focus:border-brand-500"
           />
         </label>
 
@@ -165,26 +165,26 @@ function ButterForm({
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4">
-        <div className="text-xs font-bold text-slate-400 mb-2">最近製作紀錄</div>
+      <div className="bg-white rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 p-4">
+        <div className="text-xs font-bold text-stone-400 mb-2">最近製作紀錄</div>
         {recent.length === 0 ? (
-          <div className="text-sm text-slate-400">還沒有紀錄</div>
+          <div className="text-sm text-stone-400">還沒有紀錄</div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-stone-100">
             {recent.map((b) => (
               <div key={b.id} className="py-2.5 flex items-center gap-3 text-sm">
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-slate-800">
+                  <div className="font-bold text-stone-800">
                     {b.flavor} <span className="text-amber-600">{Number(b.weight_g).toLocaleString()} g</span>
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-stone-400">
                     {fmtDateTime(b.made_at)}・{b.employee_name}
                     {b.note ? `・${b.note}` : ''}
                   </div>
                 </div>
                 <button
                   onClick={() => handleDelete(b)}
-                  className="text-slate-300 hover:text-rose-500 px-2 py-1 text-xs"
+                  className="text-stone-300 hover:text-rose-500 px-2 py-1 text-xs"
                   title="刪除"
                 >
                   ✕

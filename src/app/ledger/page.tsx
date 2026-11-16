@@ -55,25 +55,25 @@ export default function LedgerPage() {
   };
 
   if (status === 'loading') {
-    return <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-400">載入中...</div>;
+    return <div className="min-h-screen bg-cream flex items-center justify-center text-stone-400">載入中...</div>;
   }
 
   if (status === 'out') {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 w-full max-w-md">
+      <div className="min-h-screen bg-cream flex items-center justify-center p-4">
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-2xl shadow-xl border border-stone-200 w-full max-w-md">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 text-xl">
             🔒
           </div>
-          <h1 className="text-2xl font-black text-slate-800 mb-2 text-center">月記帳</h1>
-          <p className="text-sm text-slate-500 text-center mb-6">老闆專用，請用記帳帳號登入</p>
+          <h1 className="text-2xl font-black text-stone-800 mb-2 text-center">月記帳</h1>
+          <p className="text-sm text-stone-500 text-center mb-6">老闆專用，請用記帳帳號登入</p>
           <input
             type="email"
             autoComplete="username"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3.5 rounded-xl bg-slate-50 text-slate-800 mb-3 outline-none border border-slate-200 focus:border-emerald-500 focus:bg-white transition"
+            className="w-full p-3.5 rounded-xl bg-stone-50 text-stone-800 mb-3 outline-none border border-stone-200 focus:border-emerald-500 focus:bg-white transition"
           />
           <input
             type="password"
@@ -81,7 +81,7 @@ export default function LedgerPage() {
             placeholder="記帳密碼"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3.5 rounded-xl bg-slate-50 text-slate-800 mb-4 outline-none border border-slate-200 focus:border-emerald-500 focus:bg-white transition"
+            className="w-full p-3.5 rounded-xl bg-stone-50 text-stone-800 mb-4 outline-none border border-stone-200 focus:border-emerald-500 focus:bg-white transition"
           />
           {error && <p className="text-sm text-rose-600 font-bold mb-3 text-center">{error}</p>}
           <button
@@ -91,7 +91,7 @@ export default function LedgerPage() {
           >
             {busy ? '登入中...' : '登入'}
           </button>
-          <Link href="/admin" className="block text-center text-xs text-slate-400 hover:text-slate-600 mt-4">
+          <Link href="/admin" className="block text-center text-xs text-stone-400 hover:text-stone-600 mt-4">
             ← 回管理後台
           </Link>
         </form>

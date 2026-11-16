@@ -5,7 +5,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { STORE_CODES, STORE_NAMES, useStaffSession } from '@/lib/staffSession';
-import { EmployeeSelect, useStoreEmployees } from '@/components/staff/StaffShell';
+import { EmployeeSelect, LoadingChick, useStoreEmployees } from '@/components/staff/StaffShell';
+import Chick from '@/components/Chick';
+import TodayCrew from '@/components/staff/TodayCrew';
+import { Shift } from '@/lib/shifts';
 import {
   CHECKLISTS,
   CHECKLIST_TYPES,
@@ -28,6 +31,7 @@ export default function PortalPage() {
   const employees = useStoreEmployees(session?.store);
   const [code, setCode] = useState('');
   const [today, setToday] = useState<TodayStatus[]>([]);
+  const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
   const bizDate = businessDate();
 
   useEffect(() => {
@@ -39,6 +43,12 @@ export default function PortalPage() {
       .eq('business_date', bizDate)
       .order('submitted_at', { ascending: false })
       .then(({ data }) => setToday((data ?? []) as TodayStatus[]));
+    supabase
+      .from('shifts')
+      .select('*')
+      .eq('store', session.store)
+      .eq('date', bizDate)
+      .then(({ data }) => setTodayShifts((data ?? []) as Shift[]));
   }, [session, bizDate]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -53,41 +63,42 @@ export default function PortalPage() {
   };
 
   if (!ready) {
-    return <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-400">載入中...</div>;
+    return <LoadingChick />;
   }
 
   // ===== 登入畫面 =====
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-4">
+      <div className="min-h-screen bg-gradient-to-b from-brand-200 via-brand-50 to-cream flex items-center justify-center p-5">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col items-center mb-[-28px] relative z-10">
+            <Chick size={120} hat bob />
+          </div>
           <form
             onSubmit={handleLogin}
-            className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200/80 text-center"
+            className="bg-white pt-10 pb-7 px-6 rounded-[2rem] shadow-xl shadow-amber-900/10 border border-amber-100 text-center"
           >
-            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl">
-              🐔
-            </div>
-            <h1 className="text-2xl font-black text-slate-900 mb-1">18度雞 員工入口</h1>
-            <p className="text-sm text-slate-500 mb-6">請輸入分店通行碼</p>
+            <h1 className="text-2xl font-black text-stone-900">18度雞 員工小站</h1>
+            <p className="text-sm text-stone-500 mt-1 mb-6">輸入分店通行碼就可以開始囉！</p>
             <input
               type="password"
               inputMode="numeric"
+              autoComplete="off"
               placeholder="分店通行碼"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-800 mb-4 outline-none border border-slate-200 focus:border-indigo-500 focus:bg-white text-center text-lg tracking-widest font-mono"
+              className="w-full p-4 rounded-2xl bg-brand-50 text-stone-800 mb-4 outline-none border-2 border-brand-100 focus:border-brand-400 focus:bg-white text-center text-xl tracking-[0.3em] font-mono"
             />
             <button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-md transition"
+              className="w-full bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-brand-500/30 transition"
             >
-              進入
+              進入 🐣
             </button>
           </form>
           <Link
             href="/admin"
-            className="block text-center text-sm font-bold text-slate-400 hover:text-indigo-600 py-2"
+            className="block text-center text-sm font-bold text-stone-400 hover:text-brand-700 py-4"
           >
             🔐 管理後台登入
           </Link>
@@ -99,81 +110,95 @@ export default function PortalPage() {
   // ===== 入口首頁 =====
   const statusOf = (t: ChecklistType) => today.filter((s) => s.list_type === t);
 
-  const cards: { href: string; icon: string; title: string; desc: string; type?: ChecklistType }[] = [
-    { href: '/schedule', icon: '📅', title: '班表與劃休', desc: '查看班表、登記劃休' },
-    { href: '/checklist/opening', icon: CHECKLISTS.opening.icon, title: CHECKLISTS.opening.title, desc: CHECKLISTS.opening.desc, type: 'opening' },
-    { href: '/butter', icon: '🧈', title: '奶酥醬製作清單', desc: '登記製作時間、口味、重量' },
-    { href: '/checklist/daily', icon: CHECKLISTS.daily.icon, title: CHECKLISTS.daily.title, desc: CHECKLISTS.daily.desc, type: 'daily' },
-    { href: '/checklist/closing', icon: CHECKLISTS.closing.icon, title: CHECKLISTS.closing.title, desc: CHECKLISTS.closing.desc, type: 'closing' },
+  const cards: { href: string; icon: string; title: string; desc: string; tint: string; type?: ChecklistType }[] = [
+    { href: '/schedule', icon: '📅', title: '班表與劃休', desc: '看班表・劃休・當代理', tint: 'from-sky-50' },
+    { href: '/checklist/opening', icon: CHECKLISTS.opening.icon, title: '開店清點', desc: CHECKLISTS.opening.desc, tint: 'from-emerald-50', type: 'opening' },
+    { href: '/butter', icon: '🧈', title: '奶酥醬', desc: '登記製作時間與重量', tint: 'from-brand-50' },
+    { href: '/checklist/daily', icon: CHECKLISTS.daily.icon, title: '每日清潔', desc: CHECKLISTS.daily.desc, tint: 'from-lime-50', type: 'daily' },
+    { href: '/checklist/closing', icon: CHECKLISTS.closing.icon, title: '收店清潔', desc: CHECKLISTS.closing.desc, tint: 'from-violet-50', type: 'closing' },
   ];
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-16">
-      <div className="max-w-3xl mx-auto px-4 pt-6 space-y-4">
-        {/* 標題 */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl">🐔</div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900">18度雞 員工入口</h1>
-              <p className="text-xs text-slate-400 font-medium">
-                {STORE_NAMES[session.store]} ・ 營業日 {fmtBusinessDate(bizDate)}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              if (confirm('確定要登出這台裝置嗎？')) logout();
-            }}
-            className="text-xs font-bold text-slate-400 hover:text-rose-500 px-2 py-1"
-          >
-            登出
-          </button>
-        </div>
+  const hour = new Date().getHours();
+  const greeting = hour >= 5 && hour < 12 ? '早安' : hour >= 12 && hour < 18 ? '午安' : '晚安';
 
+  return (
+    <div className="min-h-screen bg-cream text-stone-800 pb-safe">
+      {/* 頂部問候 */}
+      <div className="bg-gradient-to-b from-brand-300 to-brand-100 rounded-b-[2rem] px-4 pt-6 pb-10">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-bold text-brand-900/70">
+              {STORE_NAMES[session.store]} ・ 營業日 {fmtBusinessDate(bizDate)}
+            </div>
+            <h1 className="text-2xl font-black text-stone-900 mt-0.5 truncate">
+              {greeting}，{session.employeeName ?? '夥伴'}！
+            </h1>
+            <p className="text-sm font-bold text-brand-900/70 mt-0.5">今天也一起加油 💪</p>
+          </div>
+          <Chick size={84} mood="happy" bob className="shrink-0" />
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-3 -mt-6 space-y-4">
         <EmployeeSelect session={session} update={update} employees={employees} />
 
+        <TodayCrew shifts={todayShifts} employees={employees} meId={session.employeeId} />
+
         {/* 功能卡片 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {cards.map((c) => {
+        <div className="grid grid-cols-2 gap-3">
+          {cards.map((c, i) => {
             const done = c.type ? statusOf(c.type) : [];
             return (
               <Link
                 key={c.href}
                 href={c.href}
-                className="bg-white rounded-2xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-md active:scale-[0.99] transition block"
+                className={`bg-gradient-to-br ${c.tint} to-white rounded-3xl border border-amber-100 shadow-sm shadow-amber-900/5 p-4 active:scale-[0.97] transition flex flex-col ${
+                  i === 0 ? 'col-span-2' : ''
+                }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="text-3xl leading-none">{c.icon}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-black text-slate-900">{c.title}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">{c.desc}</div>
-                    {c.type && (
-                      <div className="mt-2">
-                        {done.length > 0 ? (
-                          <span className="inline-block text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                            ✓ 今日已填 {fmtTime(done[0].submitted_at)}・{done[0].employee_name}（{done[0].done_count}/{done[0].total_count}）
-                          </span>
-                        ) : (
-                          <span className="inline-block text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded-lg">
-                            今日尚未填寫
-                          </span>
-                        )}
-                      </div>
-                    )}
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 shrink-0 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl">
+                    {c.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-black text-stone-900 leading-tight">{c.title}</div>
+                    <div className="text-xs text-stone-500 mt-0.5 line-clamp-2">{c.desc}</div>
                   </div>
                 </div>
+                {c.type && (
+                  <div className="mt-3">
+                    {done.length > 0 ? (
+                      <span className="inline-block text-[11px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                        ✓ {done[0].employee_name} {fmtTime(done[0].submitted_at)}（{done[0].done_count}/{done[0].total_count}）
+                      </span>
+                    ) : (
+                      <span className="inline-block text-[11px] font-bold bg-rose-100 text-rose-600 px-2 py-1 rounded-full">
+                        今日尚未填寫
+                      </span>
+                    )}
+                  </div>
+                )}
               </Link>
             );
           })}
         </div>
 
-        <Link
-          href="/admin"
-          className="block bg-slate-800 hover:bg-slate-900 text-white rounded-2xl p-4 text-center font-bold transition"
-        >
-          🔐 管理後台
-        </Link>
+        <div className="flex items-center justify-between gap-3 pt-2 pb-4">
+          <Link
+            href="/admin"
+            className="flex-1 bg-stone-800 hover:bg-stone-900 text-white rounded-2xl py-3.5 text-center font-bold transition"
+          >
+            🔐 管理後台
+          </Link>
+          <button
+            onClick={() => {
+              if (confirm('確定要登出這台裝置嗎？')) logout();
+            }}
+            className="px-5 py-3.5 rounded-2xl bg-white border border-stone-200 text-sm font-bold text-stone-500 active:scale-95"
+          >
+            登出
+          </button>
+        </div>
       </div>
     </div>
   );
